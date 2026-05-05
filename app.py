@@ -36,21 +36,22 @@ st.secrets に以下を設定してください（例は .streamlit/secrets.toml
 
 スプレッドシート1行目はヘッダーとして次の列順を想定:
   日時 | 商品名 | 仕入先・取引先 | 数量 | 仕入金額（税抜） | 仕入金額（税込）
-  | 販売予定金額（税抜） | 販売予定金額（税込） | 実売金額（税抜） | 実売金額（税込） | 粗利 | ステータス（在庫中/販売済） | メモ（任意） | 画像URL | 管理ID | 最後に確認した日付（棚卸日） | 販売元管理ID | 証憑記録日時 | 証憑URL
+  | 販売予定金額（税抜） | 販売予定金額（税込） | 実売金額（税抜） | 実売金額（税込） | 粗利 | ステータス（在庫中/販売済） | メモ（任意） | 在庫カテゴリー（任意・構成比用） | 画像URL | 管理ID | 最後に確認した日付（棚卸日） | 証憑記録日時 | 証憑URL
   | 仕入日時 | 入庫種別 | 浮貸日時 | 販売日時 | 出庫種別
-  ※在庫は **1点につき1行** で統一します。登録時の行数は **数量** と同じで、各行の数量は **1** です。
-  ※写真は **1枚まで** アップロードできます。写真があるときは1回だけドライブに保存し、数量が **2以上** のときは **全行に同じ画像URL** を入れます（数量が1のときはその1行のみ）。
+  ※在庫は **1点につき1行** を基本とし、台帳の **数量** 列は主に入出庫集計用です（未入力・空は **1** として扱います）。
+  ※写真は **1枚まで** アップロードできます。写真があるときは1回だけドライブに保存し、**複数行を同時に登録する** ときは **全行に同じ画像URL** を入れます。
+  ※「在庫カテゴリー」は分析・構成比用の列です。**手動の仕入れ登録では必須**、空欄の行はキャッシュ JSON や和装向けキーワードで補完されます（在庫一覧の AI 一括で台帳列を埋められます）。
   ※「管理ID」列は自動採番（例: G00000001）のシリアルです。既存行の末尾に列を追加しても列位置はずれません。
   ※「**日時**」列（A列）は **その行が最後に台帳へ保存された時点の JST 時刻**（登録・販売反映・一覧からの保存など）です。**仕入日時** は仕入の暦（EXIF 等を ``record_datetime`` に渡した値）、**入庫種別** は登録画面の区分（入庫（購入）・入庫（返品）・入庫（浮貸）等）です。**販売日時**・**出庫種別** は販売確定時に記録します。
   ※旧シートの「入出庫種別」列は読み込み時に **入庫種別** へ移して無視します（ヘッダーは新列順に更新されます）。
-  ※「仕入金額（税抜）」「仕入金額（税込）」は **1点あたりの行合計**（台帳の各行は数量1）です。
+  ※「仕入金額（税抜）」「仕入金額（税込）」は **1点あたりの行合計**（台帳の各行は1点）です。
   ※旧シートに「仕入単価（税抜）」列が残っている場合は、読み込み時にその列を除いて新しい列構成に揃えます。
   ※新規登録画面では仕入金額（税込）の計算に使う消費税を **10% / 8% / 非課税** から選べます（既定は10%）。
-  ※「販売予定金額（税抜）」「実売金額（税抜）」には **1点あたりの税抜金額** を保存し（数量と掛けて行計にします）、税込総額列はその税抜行合計に、仕入行と同じ税率で四捨五入します。
+  ※「販売予定金額（税抜）」「実売金額（税抜）」には **1点あたりの税抜金額** を保存し、税込総額列はその税抜行合計に、仕入行と同じ税率で四捨五入します。
   ※金額列（仕入〜粗利まで）は書き込み時に表示形式 **#,##0** を適用します。
-  ※粗利は税抜ベースで「販売済」なら（実売金額（税抜）×数量）−原価、「在庫中」なら（販売予定金額（税抜）×数量）−原価。台帳保存時に再計算します。
+  ※粗利は税抜ベースで「販売済」なら実売金額（税抜）−原価、「在庫中」なら販売予定金額（税抜）−原価（いずれも1点あたり）。台帳保存時に再計算します。
   ※「最後に確認した日付（棚卸日）」は棚卸作業用の任意列です（YYYY-MM-DD 推奨）。1人棚卸しの進捗把握に使います。
-  ※「販売元管理ID」は **販売管理** タブで **在庫中の行の管理ID（G########）** を指定します。出庫（販売）または出庫（浮貸）で **販売済** にするときは実売が必須で、各IDの行を順に更新します（新規行は追加しません）。出庫（浮貸）で **在庫中** のままにするときは **浮貸日時** 列に確定時の JST（または手入力）を記録します。
+  ※ **販売管理** タブで **在庫中の行の管理ID（G########）** を指定して出庫を記録します。出庫（販売）または出庫（浮貸）で **販売済** にするときは実売が必須で、各IDの行を順に更新します（新規行は追加しません）。出庫（浮貸）で **在庫中** のままにするときは **浮貸日時** 列に確定時の JST（または手入力）を記録します。
   ※「証憑記録日時」は証憑取込の **確定ボタンを押した JST 時刻**（recorded_at に相当）。「証憑URL」はその証憑を GAS 経由で Drive に保存したときの表示 URL（evidence_url）です。
   ※台帳一覧から手動で在庫行を販売済に編集する場合は、**販売日時**・**出庫種別**・実売・ステータスを整合させてください（保存時に変更があった行の「日時」は自動で更新されます）。
 """
@@ -67,7 +68,7 @@ import re
 import uuid
 from datetime import date, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterable
 
 import altair as alt
 import numpy as np
@@ -84,9 +85,10 @@ from PIL import Image, ImageOps
 COL_DATETIME = "日時"
 # 旧シート互換（読み込み時のみ。列は台帳から廃止）
 LEGACY_COL_MOVEMENT_TYPE = "入出庫種別"
+COL_QTY = "数量"
+LEGACY_COL_SALE_SOURCE_MGMT_ID = "販売元管理ID"
 COL_NAME = "商品名"
 COL_SUPPLIER = "仕入先・取引先"
-COL_QTY = "数量"
 COL_PRICE_EXCL = "仕入金額（税抜）"
 COL_PRICE_INCL = "仕入金額（税込）"
 LEGACY_COL_UNIT_PRICE = "仕入単価（税抜）"
@@ -98,9 +100,9 @@ COL_GROSS_PROFIT = "粗利"
 COL_STOCK_STATUS = "ステータス（在庫中/販売済）"
 COL_IMAGE_URL = "画像URL"
 COL_MEMO = "メモ"
+COL_CATEGORY = "在庫カテゴリー"
 COL_MANAGEMENT_ID = "管理ID"
 COL_LAST_STOCKTAKE = "最後に確認した日付（棚卸日）"
-COL_SALE_SOURCE_MGMT_ID = "販売元管理ID"
 COL_LOAN_DATETIME = "浮貸日時"
 # 証憑取込（recorded_at / evidence_url に相当）
 COL_VOUCHER_RECORDED_AT = "証憑記録日時"
@@ -114,12 +116,6 @@ COL_SALE_OUTBOUND_TYPE = "出庫種別"
 STATUS_IN_STOCK = "在庫中"
 STATUS_SOLD = "販売済"
 STOCK_STATUS_OPTIONS: tuple[str, ...] = (STATUS_IN_STOCK, STATUS_SOLD)
-
-# 登録画面「数量」の number_input 専用キー。
-# 旧実装で max_value=1・disabled が付いていた端末では、同一キーのままだと数量が増やせないことがあるため分離する。
-REGISTRATION_QTY_WIDGET_KEY = "registration_qty_input"
-SALES_TAB_QTY_WIDGET_KEY = "sales_tab_registration_qty"
-
 
 def _movement_is_outbound(mv: str) -> bool:
     """入出庫種別が出庫（販売・浮貸など）かどうか。"""
@@ -147,10 +143,10 @@ EXPECTED_HEADERS: list[str] = [
     COL_GROSS_PROFIT,
     COL_STOCK_STATUS,
     COL_MEMO,
+    COL_CATEGORY,
     COL_IMAGE_URL,
     COL_MANAGEMENT_ID,
     COL_LAST_STOCKTAKE,
-    COL_SALE_SOURCE_MGMT_ID,
     COL_VOUCHER_RECORDED_AT,
     COL_VOUCHER_EVIDENCE_URL,
     COL_PURCHASE_DATETIME,
@@ -247,7 +243,17 @@ SHEET_AMOUNT_NUMBER_PATTERN = "#,##0"
 TZ_JP = pytz.timezone("Asia/Tokyo")
 LEDGER_DATA_EDITOR_KEY = "inventory_ledger_data_editor"
 INV_GALLERY_PAGE_SIZE = 30
+STOCKTAKE_CAND_PAGE_SIZE = 5
+# 棚卸しスキャン: AI が返す候補の最大件数（UI は STOCKTAKE_CAND_PAGE_SIZE 件ずつページング）
+STOCKTAKE_CAND_AI_MAX = 40
 SESSION_KEY_INV_SHEET_CACHE_BUST = "_inv_sheet_cache_bust"
+SESSION_KEY_STOCKTAKE_LAST_IMAGE_BYTES = "_stocktake_last_camera_bytes"
+# 在庫一覧: 棚卸し「今回の対象リスト」を台帳フォルダに JSON で永続化（アプリ終了後も維持）
+STOCKTAKE_WORK_SESSION_FILENAME = "stocktake_work_session.json"
+# 分析ダッシュボード: 商品名＋仕入先をキーにしたカテゴリー推定キャッシュ（.gitignore の *.json でコミットされない想定）
+INVENTORY_CATEGORY_CACHE_FILENAME = "inventory_category_cache.json"
+# 移行前の session_state キー（読み込み時にファイルへ移す）
+_SESSION_KEY_STOCKTAKE_WORK_REMAINING_LEGACY = "_inv_stocktake_work_remaining_mids"
 VOUCHER_DATA_EDITOR_KEY = "voucher_inventory_preview_editor"
 LEDGER_PICK_PLACEHOLDER = "（選ばない）"
 
@@ -604,8 +610,7 @@ def _apply_gemini_json_to_session(
         r.get("quantity") or r.get("数量") or r.get("qty") or 1,
         default=1,
     )
-    st.session_state.field_qty = _qty_g
-    st.session_state[REGISTRATION_QTY_WIDGET_KEY] = _qty_g
+    st.session_state.field_row_quantity = min(2000, _qty_g)
 
     m = r.get("match")
     row_hit: pd.Series | None = None
@@ -613,8 +618,7 @@ def _apply_gemini_json_to_session(
         mid_hit = str(m.get("management_id") or m.get("管理ID") or "").strip()
         if mid_hit and COL_MANAGEMENT_ID in df_ledger.columns:
             mask_id = df_ledger[COL_MANAGEMENT_ID].astype(str).str.strip() == mid_hit
-            mask_in = _mask_ledger_in_stock(df_ledger)
-            sub_hit = df_ledger.loc[mask_id & mask_in]
+            sub_hit = df_ledger.loc[mask_id]
             if len(sub_hit) == 1:
                 row_hit = sub_hit.iloc[0]
                 st.session_state["_gemini_match_management_id"] = mid_hit
@@ -709,6 +713,24 @@ def _apply_gemini_json_to_session(
     st.session_state.ai_features = str(vf or "")
     st.session_state.ai_parse_ran = True
 
+    ic = str(
+        r.get("inventory_category")
+        or r.get("在庫カテゴリー")
+        or r.get("stock_category")
+        or r.get("category_label")
+        or ""
+    ).strip()
+    if row_hit is not None and COL_CATEGORY in row_hit.index:
+        rc = str(row_hit.get(COL_CATEGORY, "") or "").strip()
+        if rc:
+            ic = rc
+    if isinstance(m, dict) and match_conf_ok:
+        mic = str(m.get("inventory_category") or m.get("在庫カテゴリー") or "").strip()
+        if mic and not ic:
+            ic = mic
+    if ic:
+        st.session_state.field_inventory_category = ic[:80]
+
 
 def _apply_gemini_sale_link_to_session(
     result: dict[str, Any],
@@ -716,7 +738,7 @@ def _apply_gemini_sale_link_to_session(
     *,
     fill_product_preview_fields: bool = True,
 ) -> None:
-    """販売元管理ID（入庫時の管理ID）の写真照合結果を session_state に反映する。"""
+    """販売管理の「販売する管理ID」欄へ、写真照合で得た管理IDを session_state に反映する。"""
     st.session_state.pop("_sale_link_management_id", None)
     st.session_state.pop("_sale_link_warn", None)
     r = result
@@ -729,6 +751,37 @@ def _apply_gemini_sale_link_to_session(
         or r.get("management_id")
         or ""
     ).strip()
+    if (
+        not mid
+        and df_ledger is not None
+        and not df_ledger.empty
+    ):
+        pn0 = str(
+            m.get("product_name")
+            or r.get("product_name")
+            or r.get("商品名")
+            or ""
+        ).strip()
+        su0 = str(
+            m.get("supplier")
+            or r.get("supplier")
+            or r.get("仕入先・取引先")
+            or r.get("仕入先")
+            or ""
+        ).strip()
+        fr = _single_row_fuzzy_ledger_match(
+            df_ledger, pn0, su0, only_in_stock=True, limit=14
+        )
+        if fr is not None:
+            mid = str(fr.get(COL_MANAGEMENT_ID, "") or "").strip()
+            if mid:
+                m = {
+                    **m,
+                    "management_id": mid,
+                    "confidence": max(
+                        float(m.get("confidence") or 0), 0.78
+                    ),
+                }
     conf = float(m.get("confidence") or r.get("confidence") or 0)
     row_hit: pd.Series | None = None
     if (
@@ -921,14 +974,15 @@ def analyze_image_with_gemini(
     inv_block = ""
     if inventory_context and inventory_context.strip():
         inv_block = f"""
-次のリストは、すでに台帳にある **在庫中** の行の抜粋です（**販売済は含みません**。最大約90件。写真と同一・類似の商品がありそうなら必ず照合してください）。
+次のリストは、すでに台帳にある行の抜粋です（**在庫中・販売済などステータス付き**。最大約400件。写真と同一・類似の商品がありそうなら必ず照合してください）。
 {inventory_context.strip()}
 
 照合するときは必ず "match" オブジェクトを付け、少なくとも次を含めてください:
-- "management_id" (string): 上のリストにある **在庫中** 行の **管理ID** と完全一致する値（該当がなければ ""）
+- "management_id" (string): 上のリストにある行の **管理ID** と完全一致する値。リストには **在庫中・販売済などすべてのステータス** が含まれます。**写真と同一・類似の台帳上の1行** に対応するときは、その行の管理IDを選ぶこと（仕入れの入力補助・単価参照のため。ステータスで候補を除外しない）。該当がなければ ""
 - "product_name" (string): 台帳の商品名に合わせた確定案（推測でも可）
 - "supplier" (string): 台帳の仕入先に合わせた確定案（推測でも可）
 - "line_price_excl" (integer or null): 台帳の仕入金額（税抜）と一致する整数。不明なら null
+- "inventory_category" (string): リストの照合先行に **{COL_CATEGORY}** が載っていればその行と同一の文字列。リストに無い・該当行が空なら ""
 - "confidence" (number): 0.0〜1.0 で、写真と台帳行が同一在庫である確信度
 
 同一行が見つからない場合は management_id を "" にし、confidence は 0.4 未満にしてください。
@@ -939,26 +993,30 @@ def analyze_image_with_gemini(
                 "棚卸しの照合には台帳に在庫中の行が必要です（スプレッドシートを確認してください）。"
             )
         prompt = f"""この写真は **店舗で棚卸しのために撮影した現物1点** です（呉服・和装の在庫）。
-次のリストは台帳の **在庫中** の行だけです（販売済は含みません）。
-写真と **同一の在庫1行** を特定し、JSON だけを返してください（説明文・Markdown のコードフェンス禁止）。
+次のリストは、**今回の棚卸作業でまだ未確認として残っている在庫中の行** に限定した抜粋です（販売済は含みません。リスト外の管理IDは返さないこと）。
+同じ柄・同型で **複数行あることが多い** ので、写真に合いそうな行を **複数** 挙げてください（最大{STOCKTAKE_CAND_AI_MAX}件。アプリでは画面を{STOCKTAKE_CAND_PAGE_SIZE}件ずつに分けて表示します）。
+**リストに無い管理IDは絶対に返さない** でください。JSON だけを返す（説明文・Markdown のコードフェンス禁止）。
 
 {inventory_context.strip()}
 
 返却形式（キーは次のみ）:
-- "match" (object): 必須。フィールド:
-  - "management_id" (string): 選んだ行の管理ID（G########）。該当なしなら ""
-  - "confidence" (number): 0.0〜1.0
+- "stocktake_candidates" (array): 必須。各要素は object で、次のフィールドを持つ:
+  - "management_id" (string): リストにある在庫中行の管理ID（G########）
+  - "confidence" (number): 0.0〜1.0（写真と同一在庫である確信度。表示順はアプリ側で管理IDの昇順に整列する）
   - "product_name" (string): その行の商品名（参考）
   - "supplier" (string): その行の仕入先（参考）
+  該当が1件も無いときは空配列 []。
+  迷う場合は複数入れてよい（confidence が低いものも列挙してよい。ただし無関係な行は入れない）。
 
-該当がなければ management_id を ""、confidence は 0.35 以下にしてください。"""
+任意で互換用に "match" (object) を1件だけ付けてもよい（先頭候補と同じ内容でよい）。"""
         response = model.generate_content([prompt, image_data])
         return response.text or ""
 
     if prompt_mode == "sale_link":
         if not inventory_context or not inventory_context.strip():
             raise ValueError(
-                "販売元の写真照合には、台帳に在庫中の行が必要です（スプレッドシートを確認してください）。"
+                "販売元の写真照合には、台帳に **在庫中** の行が少なくとも1行必要です（管理ID・商品名などが入っている行）。"
+                "在庫がすべて販売済のときや、台帳の読み込みに失敗しているときは使えません。"
             )
         prompt = f"""この画像は、**販売時にどの在庫行に対応するか** を特定するための商品写真です（呉服店の在庫）。
 次のリストは台帳の **在庫中** の行だけです（**販売済の行は含めていません**）。必ずこのリストの中からだけ management_id を選べ。
@@ -985,6 +1043,7 @@ def analyze_image_with_gemini(
 - "product_name" (string): 商品名として適切な短い名称。不明なら ""
 - "supplier" (string): 仕入先・取引先として推測できる名称。不明なら ""
 - "quantity" (integer): 写っている点数・束の本数などの推定。最低 1
+- "inventory_category" (string): **在庫カテゴリー**（分析・構成比用の短いラベル。例: 帯、雑貨、飲料。業種は問わない）。20文字以内。推測できる場合は必ず入れる。本当に不明なら ""
 - "product_kind" (string): 種類の推定（例: 振袖、訪問着、帯、長襦袢）。不明なら ""
 - "color" (string): 色の推定。不明なら ""
 - "pattern" (string): 柄の推定。不明なら ""
@@ -993,7 +1052,8 @@ def analyze_image_with_gemini(
 - "unit_price_excl" (integer or null): 1点あたりの税抜の仕入金額（円）の推定。相場・品質から読めない場合は null（勝手に 1 にしない）
 {inv_block}
 任意: 台帳照合結果を "match" にまとめる（上記リストがあるときはできる限り付与）
-  例: {{"management_id": "G00000001", "product_name": "…", "supplier": "…", "line_price_excl": 12345, "confidence": 0.85}}
+  例: {{"management_id": "G00000001", "product_name": "…", "supplier": "…", "line_price_excl": 12345, "inventory_category": "帯", "confidence": 0.85}}
+  リストの行に **{COL_CATEGORY}** が載っているときは、照合して "match" に management_id を入れる場合 **必ず** 同じ行の値を "inventory_category" に含める。リストにカテゴリーが無いときのみ省略可。
   不要・該当なしのときは "match" キー自体を省略してもよい。"""
     response = model.generate_content([prompt, image_data])
     return response.text or ""
@@ -1431,6 +1491,7 @@ def _confirm_voucher_import(
             for name, q, up, cat in rows_spec:
                 memo = f"証憑取込 category={cat}" if cat else "証憑取込"
                 incl = price_incl_tax(up, tax_r)
+                _v_cat = str(cat).strip()[:80] if cat else ""
                 for _ in range(q):
                     batch_rows.append(
                         _inventory_row_values_for_append(
@@ -1444,6 +1505,7 @@ def _confirm_voucher_import(
                             "",
                             ids[idx],
                             memo,
+                            inventory_category=_v_cat,
                             consumption_tax_rate=tax_r,
                             voucher_recorded_at=recorded_at,
                             voucher_evidence_url=evidence_url,
@@ -1620,13 +1682,21 @@ def _bump_inventory_sheet_cache_bust() -> None:
 @st.cache_data(show_spinner=False)
 def _inventory_sheet_get_all_values_cached(
     sheet_id: str, worksheet_title: str, bust: int
-) -> list[list[str]] | None:
-    """同一 bust の間は get_all_values の結果を再利用する（bust は書き込み・再読込で進める）。"""
+) -> list[list[Any]]:
+    """同一 bust の間は get_all_values の結果を再利用する（bust は書き込み・再読込で進める）。
+
+    失敗時は **例外を送出**する。``return None`` だと Streamlit の ``@st.cache_data`` に
+    失敗結果がキャッシュされ、一時的な通信エラー後も台帳が読めなくなるため。
+    """
     _ = bust
     try:
         sh = _gspread_client().open_by_key(str(sheet_id))
-    except Exception:
-        return None
+    except Exception as e:
+        raise RuntimeError(
+            "スプレッドシートを開けません。"
+            f"{SECRET_GOOGLE_SPREADSHEET_ID}・共有権限・[{SECRET_GOOGLE_SERVICE_ACCOUNT_SECTION}] を確認してください。"
+            f" 詳細: {e}"
+        ) from e
     try:
         try:
             ws = sh.worksheet(str(worksheet_title))
@@ -1636,12 +1706,16 @@ def _inventory_sheet_get_all_values_cached(
                 rows=2000,
                 cols=max(20, len(EXPECTED_HEADERS) + 2),
             )
-    except Exception:
-        return None
+    except Exception as e:
+        raise RuntimeError(
+            f"ワークシート「{worksheet_title}」を開けず、新規作成にも失敗しました: {e}"
+        ) from e
     try:
         return ws.get_all_values()
-    except Exception:
-        return None
+    except Exception as e:
+        raise RuntimeError(
+            f"ワークシート「{worksheet_title}」の get_all_values に失敗しました: {e}"
+        ) from e
 
 
 def ensure_worksheet_header():
@@ -1730,7 +1804,6 @@ def _coerce_money_columns_for_recalc(df: pd.DataFrame) -> pd.DataFrame:
         COL_ACTUAL_SALE,
         COL_ACTUAL_SALE_INCL,
         COL_GROSS_PROFIT,
-        COL_QTY,
     )
     for c in money_cols:
         if c not in out.columns:
@@ -1743,6 +1816,16 @@ def _coerce_money_columns_for_recalc(df: pd.DataFrame) -> pd.DataFrame:
         x = pd.to_numeric(s, errors="coerce").to_numpy(dtype=np.float64, copy=False)
         x = np.where(np.isfinite(x), np.rint(x), 0.0)
         out[c] = x.astype(np.int64)
+    if COL_QTY in out.columns:
+        s = (
+            _series_to_numeric_loose(out[COL_QTY])
+            .replace([np.inf, -np.inf], np.nan)
+            .fillna(1)
+        )
+        xq = pd.to_numeric(s, errors="coerce").to_numpy(dtype=np.float64, copy=False)
+        xq = np.where(np.isfinite(xq), np.rint(xq), 1.0)
+        xq = np.maximum(1.0, xq)
+        out[COL_QTY] = xq.astype(np.int64)
     return out
 
 
@@ -1779,15 +1862,372 @@ def _mask_ledger_stocktake_unverified(df: pd.DataFrame) -> pd.Series:
 
 def _mask_ledger_stocktake_today_jst(df: pd.DataFrame) -> pd.Series:
     """在庫中かつ棚卸日が今日（JST）の行。"""
+    if df.empty or COL_LAST_STOCKTAKE not in df.columns:
+        return pd.Series(False, index=df.index)
     m_in = _mask_ledger_in_stock(df)
-    dt = _ledger_stocktake_dates_parsed(df)
-    today = _today_jst_date()
-    parts = (
-        dt.dt.year.eq(today.year)
-        & dt.dt.month.eq(today.month)
-        & dt.dt.day.eq(today.day)
+    today_s = _today_jst_date().isoformat()
+    tok = df[COL_LAST_STOCKTAKE].map(_stocktake_date_token_for_compare)
+    return m_in & (tok == today_s) & (tok != "")
+
+
+def _count_stocktake_today_jst_in_management_ids(
+    df: pd.DataFrame, mids: set[str]
+) -> int:
+    """指定した管理 ID のうち、在庫中かつ棚卸日が今日（JST）の行数。"""
+    if df.empty or not mids or COL_MANAGEMENT_ID not in df.columns:
+        return 0
+    m = _mask_ledger_stocktake_today_jst(df) & df[COL_MANAGEMENT_ID].astype(str).str.strip().isin(
+        mids
     )
-    return m_in & dt.notna() & parts
+    return int(m.sum())
+
+
+def _stocktake_date_token_for_compare(val: Any) -> str:
+    """棚卸日セルの値を **JST の暦日**（ISO）に正規化。空・解釈不能は空文字。
+
+    サーバーが UTC のときでも、スプレッドシートの日付列と「今日（JST）」の一致判定がずれないようにする。
+    """
+    if val is None:
+        return ""
+    if isinstance(val, (float, np.floating)) and (pd.isna(val) or not math.isfinite(float(val))):
+        return ""
+    dt = pd.to_datetime(val, errors="coerce")
+    if pd.isna(dt):
+        return ""
+    ts = pd.Timestamp(dt)
+    try:
+        if ts.tzinfo is None:
+            ts = ts.tz_localize(TZ_JP, ambiguous="infer", nonexistent="shift_forward")
+        else:
+            ts = ts.tz_convert(TZ_JP)
+    except (TypeError, ValueError):
+        try:
+            ts = pd.Timestamp(dt).tz_localize("UTC", ambiguous="infer").tz_convert(TZ_JP)
+        except Exception:
+            return ""
+    return ts.date().isoformat()
+
+
+def _ledger_stocktake_date_token_for_mid(df: pd.DataFrame, mid: str) -> str:
+    row = lookup_ledger_row_by_management_id(df, mid.strip())
+    if row is None:
+        return ""
+    return _stocktake_date_token_for_compare(row.get(COL_LAST_STOCKTAKE))
+
+
+def _count_stocktake_today_confirmed_since_session_start(
+    df: pd.DataFrame,
+    origin_ids: set[str],
+    start_tokens: dict[str, str],
+) -> int:
+    """今回セッション開始時点の棚卸日と比べ、本日中（JST）に変わった在庫中の件数（同一暦日の再セッションで前回分を数えない）。"""
+    if df.empty or not origin_ids or COL_MANAGEMENT_ID not in df.columns:
+        return 0
+    today_s = _today_jst_date().isoformat()
+    n = 0
+    for mid in origin_ids:
+        row = lookup_ledger_row_by_management_id(df, mid)
+        if row is None:
+            continue
+        if _normalize_stock_status(str(row.get(COL_STOCK_STATUS, ""))) != STATUS_IN_STOCK:
+            continue
+        cur_tok = _stocktake_date_token_for_compare(row.get(COL_LAST_STOCKTAKE))
+        if cur_tok != today_s:
+            continue
+        prev_tok = start_tokens.get(mid, "")
+        if cur_tok != prev_tok:
+            n += 1
+    return n
+
+
+def _management_ids_stocktake_today_confirmed_since_session_start(
+    df: pd.DataFrame,
+    origin_ids: set[str],
+    start_tokens: dict[str, str],
+    *,
+    limit: int = 24,
+) -> list[str]:
+    """上記カウントに該当する管理ID（表示用・先頭 limit 件）。"""
+    if df.empty or not origin_ids or COL_MANAGEMENT_ID not in df.columns:
+        return []
+    today_s = _today_jst_date().isoformat()
+    out: list[str] = []
+    for mid in sorted(origin_ids):
+        row = lookup_ledger_row_by_management_id(df, mid)
+        if row is None:
+            continue
+        if _normalize_stock_status(str(row.get(COL_STOCK_STATUS, ""))) != STATUS_IN_STOCK:
+            continue
+        cur_tok = _stocktake_date_token_for_compare(row.get(COL_LAST_STOCKTAKE))
+        if cur_tok != today_s:
+            continue
+        prev_tok = start_tokens.get(mid, "")
+        if cur_tok != prev_tok:
+            out.append(str(mid).strip())
+            if len(out) >= limit:
+                break
+    return out
+
+
+def _all_in_stock_management_ids(df: pd.DataFrame) -> set[str]:
+    """在庫中の行の管理ID（空でないもの）の集合。"""
+    if df.empty or COL_MANAGEMENT_ID not in df.columns:
+        return set()
+    m_in = _mask_ledger_in_stock(df)
+    ids = df.loc[m_in, COL_MANAGEMENT_ID].astype(str).str.strip()
+    return {x for x in ids.tolist() if x}
+
+
+def _stocktake_work_session_path() -> Path:
+    return Path(__file__).resolve().parent / STOCKTAKE_WORK_SESSION_FILENAME
+
+
+def _inv_stocktake_work_read_disk() -> tuple[bool, set[str], int | None, set[str], dict[str, str]]:
+    """ディスク上のセッション（migrate なし）。(有効, 残りID, baseline, 開始時対象の管理ID, 開始時棚卸日トークン)。"""
+    p = _stocktake_work_session_path()
+    if not p.is_file():
+        return (False, set(), None, set(), {})
+    try:
+        raw = json.loads(p.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError, TypeError):
+        return (False, set(), None, set(), {})
+    if not isinstance(raw, dict) or not raw.get("active"):
+        return (False, set(), None, set(), {})
+    rem = raw.get("remaining") or []
+    if not isinstance(rem, list):
+        rem = []
+    s = {str(x).strip() for x in rem if str(x).strip()}
+    base = raw.get("session_baseline_n")
+    bi = int(base) if isinstance(base, int) and base >= 1 else None
+    org_raw = raw.get("session_origin_ids") or []
+    if not isinstance(org_raw, list):
+        org_raw = []
+    orig = {str(x).strip() for x in org_raw if str(x).strip()}
+    snap_raw = raw.get("session_stocktake_at_start")
+    snap: dict[str, str] = {}
+    if isinstance(snap_raw, dict):
+        for k, v in snap_raw.items():
+            ks = str(k).strip()
+            if not ks:
+                continue
+            snap[ks] = (
+                _stocktake_date_token_for_compare(v)
+                if str(v).strip()
+                else ""
+            )
+    if not orig:
+        if snap:
+            orig = set(snap.keys())
+        elif s:
+            orig = set(s)
+    return (True, s, bi, orig, snap)
+
+
+def _inv_stocktake_work_remaining_read_state(
+    df: pd.DataFrame | None = None,
+) -> tuple[bool, set[str], int, set[str], dict[str, str]]:
+    """表示用のセッション状態。無効時 (False, set(), 0, set(), {})。有効時 baseline は最低 1（旧ファイル互換）。"""
+    _inv_stocktake_work_remaining_migrate_legacy_from_session_state()
+    a, s, b, o, snap = _inv_stocktake_work_read_disk()
+    if not a:
+        return False, set(), 0, set(), {}
+    eff_b = b if b is not None and b >= 1 else max(len(s), 1)
+    if df is not None and not df.empty and o and COL_MANAGEMENT_ID in df.columns:
+        snap_m = dict(snap)
+        dirty = any(m not in snap_m for m in o)
+        if dirty:
+            for m in o:
+                if m not in snap_m:
+                    snap_m[m] = _ledger_stocktake_date_token_for_mid(df, m)
+            _inv_stocktake_work_remaining_save(
+                True,
+                s,
+                baseline_override=eff_b,
+                session_origin=o,
+                stocktake_snapshot=snap_m,
+            )
+            snap = snap_m
+    return True, s, eff_b, o, snap
+
+
+def _inv_stocktake_work_remaining_save(
+    active: bool,
+    remaining: set[str],
+    *,
+    baseline_override: int | None = None,
+    session_origin: set[str] | None = None,
+    stocktake_snapshot: dict[str, str] | None = None,
+) -> None:
+    """有効時は JSON に保存（baseline・開始時対象 ID・開始時棚卸日スナップショットを維持または上書き）。無効時はファイル削除。"""
+    st.session_state.pop(_SESSION_KEY_STOCKTAKE_WORK_REMAINING_LEGACY, None)
+    p = _stocktake_work_session_path()
+    if not active:
+        try:
+            if p.is_file():
+                p.unlink()
+        except OSError:
+            pass
+        return
+    _a, _old_rem, old_base, old_orig, old_snap = _inv_stocktake_work_read_disk()
+    eff_base = baseline_override if baseline_override is not None and baseline_override >= 1 else old_base
+    if eff_base is None or eff_base < 1:
+        eff_base = max(len(remaining), 1)
+    if session_origin is not None:
+        eff_origin = {str(x).strip() for x in session_origin if str(x).strip()}
+    elif old_orig:
+        eff_origin = set(old_orig)
+    else:
+        eff_origin = {str(x).strip() for x in remaining if str(x).strip()}
+    if stocktake_snapshot is not None:
+        eff_snap = {
+            str(k).strip(): str(v).strip() if v is not None else ""
+            for k, v in stocktake_snapshot.items()
+            if str(k).strip()
+        }
+    else:
+        eff_snap = dict(old_snap) if old_snap else {}
+    data = {
+        "active": True,
+        "remaining": sorted(remaining),
+        "session_baseline_n": int(eff_base),
+        "session_origin_ids": sorted(eff_origin),
+        "session_stocktake_at_start": {k: eff_snap[k] for k in sorted(eff_snap)},
+    }
+    tmp = p.with_name(p.name + ".tmp")
+    try:
+        tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+        tmp.replace(p)
+    except OSError:
+        try:
+            if tmp.is_file():
+                tmp.unlink()
+        except OSError:
+            pass
+
+
+def _inv_stocktake_work_remaining_finish_if_empty(remaining: set[str]) -> None:
+    """残りが空ならセッション終了（全数確認済み）。それ以外は保存。"""
+    if not remaining:
+        _inv_stocktake_work_remaining_save(False, set())
+    else:
+        _inv_stocktake_work_remaining_save(True, remaining)
+
+
+def _inv_stocktake_work_remaining_migrate_legacy_from_session_state() -> None:
+    """旧実装の session_state だけに残っているリストを初回ファイルへ移す。"""
+    v = st.session_state.get(_SESSION_KEY_STOCKTAKE_WORK_REMAINING_LEGACY)
+    if v is None:
+        return
+    if isinstance(v, set):
+        s = set(v)
+    elif isinstance(v, (list, tuple)):
+        s = {str(x).strip() for x in v if str(x).strip()}
+    else:
+        s = set()
+    st.session_state.pop(_SESSION_KEY_STOCKTAKE_WORK_REMAINING_LEGACY, None)
+    if _stocktake_work_session_path().is_file():
+        return
+    if not s:
+        return
+    _inv_stocktake_work_remaining_finish_if_empty(s)
+
+
+def _inv_stocktake_work_remaining_get() -> set[str] | None:
+    """棚卸し作業セッションの残り管理 ID。未開始・全件確認済みで終了したあとは None。"""
+    _inv_stocktake_work_remaining_migrate_legacy_from_session_state()
+    active, rem, _b, _o, _snap = _inv_stocktake_work_read_disk()
+    if not active:
+        return None
+    return rem
+
+
+def _inv_stocktake_work_remaining_start(df: pd.DataFrame) -> None:
+    """在庫中の全管理IDを「今回の作業」の対象にする。"""
+    ids = _all_in_stock_management_ids(df)
+    if not ids:
+        _inv_stocktake_work_remaining_save(False, set())
+        return
+    n0 = len(ids)
+    snap0 = {m: _ledger_stocktake_date_token_for_mid(df, m) for m in ids}
+    _inv_stocktake_work_remaining_save(
+        True,
+        ids,
+        baseline_override=n0,
+        session_origin=ids,
+        stocktake_snapshot=snap0,
+    )
+
+
+def _inv_stocktake_work_remaining_clear() -> None:
+    _inv_stocktake_work_remaining_save(False, set())
+
+
+def _inv_stocktake_work_remaining_prune(df: pd.DataFrame) -> None:
+    """販売済・削除などで在庫中でなくなった ID を残リストから外す。空になればセッション終了。"""
+    cur = _inv_stocktake_work_remaining_get()
+    if cur is None:
+        return
+    valid = _all_in_stock_management_ids(df)
+    newrem = {m for m in cur if m in valid}
+    _, _, _, old_orig, old_snap = _inv_stocktake_work_read_disk()
+    new_orig = (old_orig & valid) if old_orig else newrem
+    new_snap: dict[str, str] = {}
+    for m in new_orig:
+        if m in old_snap:
+            new_snap[m] = old_snap[m]
+        else:
+            new_snap[m] = _ledger_stocktake_date_token_for_mid(df, m)
+    if not newrem:
+        _inv_stocktake_work_remaining_save(False, set())
+    else:
+        _inv_stocktake_work_remaining_save(
+            True, newrem, session_origin=new_orig, stocktake_snapshot=new_snap
+        )
+
+
+def _inv_stocktake_work_remaining_note_done(mids: set[str] | str) -> None:
+    """棚卸日を更新した管理IDを今回の残リストから外す。"""
+    if isinstance(mids, str):
+        s = {mids.strip()} if mids.strip() else set()
+    else:
+        s = {str(x).strip() for x in mids if str(x).strip()}
+    if not s:
+        return
+    cur = _inv_stocktake_work_remaining_get()
+    if cur is None:
+        return
+    _inv_stocktake_work_remaining_finish_if_empty(cur - s)
+
+
+def _management_ids_last_stocktake_changed(
+    df_before: pd.DataFrame, df_after: pd.DataFrame
+) -> set[str]:
+    """同一管理IDについて「最後に確認した日付（棚卸日）」の表記が変わった管理ID。"""
+    if (
+        COL_MANAGEMENT_ID not in df_before.columns
+        or COL_MANAGEMENT_ID not in df_after.columns
+        or COL_LAST_STOCKTAKE not in df_before.columns
+        or COL_LAST_STOCKTAKE not in df_after.columns
+    ):
+        return set()
+    bcol = "_stk_prev"
+    acol = "_stk_new"
+    bef = df_before[[COL_MANAGEMENT_ID, COL_LAST_STOCKTAKE]].copy()
+    aft = df_after[[COL_MANAGEMENT_ID, COL_LAST_STOCKTAKE]].copy()
+    bef[COL_MANAGEMENT_ID] = bef[COL_MANAGEMENT_ID].astype(str).str.strip()
+    aft[COL_MANAGEMENT_ID] = aft[COL_MANAGEMENT_ID].astype(str).str.strip()
+    merged = bef.rename(columns={COL_LAST_STOCKTAKE: bcol}).merge(
+        aft.rename(columns={COL_LAST_STOCKTAKE: acol}),
+        on=COL_MANAGEMENT_ID,
+        how="inner",
+    )
+    out: set[str] = set()
+    for _, r in merged.iterrows():
+        if str(r[bcol] or "").strip() != str(r[acol] or "").strip():
+            mid = str(r[COL_MANAGEMENT_ID]).strip()
+            if mid:
+                out.add(mid)
+    return out
 
 
 def _ledger_in_stock_rows(df: pd.DataFrame) -> pd.DataFrame:
@@ -1796,24 +2236,64 @@ def _ledger_in_stock_rows(df: pd.DataFrame) -> pd.DataFrame:
     return df.loc[_mask_ledger_in_stock(df)].copy()
 
 
-def _build_gemini_inventory_context(df: pd.DataFrame, *, max_lines: int = 90) -> str:
-    """在庫中の行だけを短い箇条書きにし、画像照合用プロンプトへ埋め込む。"""
-    sub = _ledger_in_stock_rows(df)
+def _build_gemini_inventory_context(
+    df: pd.DataFrame,
+    *,
+    max_lines: int = 400,
+    only_in_stock: bool = True,
+    management_ids_filter: set[str] | None = None,
+) -> str:
+    """台帳行を短い箇条書きにし、画像照合用プロンプトへ埋め込む。
+
+    ``only_in_stock=True`` … 販売照合・棚卸し用（在庫中のみ）。
+    ``only_in_stock=False`` … 登録画面の AI 解析用（在庫中・販売済など全行を最大 max_lines 件）。
+    ``management_ids_filter`` … 指定時はその管理 ID に含まれる行だけ（棚卸し「今回の残リスト」向け）。
+    **管理IDが空の行はスキップ** し、行数上限を無駄に使わない。
+    """
+    if df.empty:
+        return ""
+    sub = _ledger_in_stock_rows(df) if only_in_stock else df
     if sub.empty:
         return ""
+    eff_max_lines = int(max_lines)
+    if management_ids_filter is not None:
+        filt = {str(x).strip() for x in management_ids_filter if str(x).strip()}
+        if not filt:
+            return ""
+        if COL_MANAGEMENT_ID not in sub.columns:
+            return ""
+        sub = sub.loc[
+            sub[COL_MANAGEMENT_ID].astype(str).str.strip().isin(filt)
+        ].copy()
+        if sub.empty:
+            return ""
+        eff_max_lines = max(eff_max_lines, 800)
     lines: list[str] = []
     for _, row in sub.iterrows():
-        if len(lines) >= max_lines:
+        if len(lines) >= eff_max_lines:
             break
         mid = str(row.get(COL_MANAGEMENT_ID, "") or "").strip()
+        if not mid:
+            continue
         pn = str(row.get(COL_NAME, "") or "").strip().replace("\n", " ")
         su = str(row.get(COL_SUPPLIER, "") or "").strip().replace("\n", " ")
         cogs = _int_from_cell(row.get(COL_PRICE_EXCL))
+        st_lbl = ""
+        if COL_STOCK_STATUS in row.index:
+            st_lbl = _normalize_stock_status(str(row.get(COL_STOCK_STATUS, "") or ""))
+        st_seg = f" 状態={json.dumps(st_lbl, ensure_ascii=False)}" if st_lbl else ""
+        cat_seg = ""
+        if COL_CATEGORY in row.index:
+            cat = str(row.get(COL_CATEGORY, "") or "").strip().replace("\n", " ")
+            if cat:
+                cat_seg = (
+                    f" {COL_CATEGORY}={json.dumps(cat, ensure_ascii=False)}"
+                )
         lines.append(
             f"- 管理ID={json.dumps(mid, ensure_ascii=False)} "
             f"商品名={json.dumps(pn, ensure_ascii=False)} "
             f"仕入先={json.dumps(su, ensure_ascii=False)} "
-            f"仕入金額税抜={cogs}"
+            f"仕入金額税抜={cogs}{st_seg}{cat_seg}"
         )
     return "\n".join(lines)
 
@@ -1825,10 +2305,10 @@ def _fuzzy_ledger_match_rows(
     *,
     limit: int = 8,
 ) -> pd.DataFrame:
-    """在庫中の行から、商品名・仕入先の近い候補を返す（写真解析後の補助）。"""
-    sub = _ledger_in_stock_rows(df)
-    if sub.empty:
-        return sub.iloc[:0]
+    """台帳の全行から、商品名・仕入先の近い候補を返す（写真解析後の補助。ステータスは問わない）。"""
+    if df is None or df.empty:
+        return pd.DataFrame()
+    sub = df
     pn = (product_name or "").strip().casefold()
     su = (supplier or "").strip().casefold()
     if not pn and not su:
@@ -1856,6 +2336,79 @@ def _fuzzy_ledger_match_rows(
     if not picked:
         return sub.iloc[:0]
     return sub.loc[picked]
+
+
+def _single_row_fuzzy_ledger_match(
+    df: pd.DataFrame | None,
+    product_name: str,
+    supplier: str,
+    *,
+    only_in_stock: bool,
+    limit: int = 12,
+) -> pd.Series | None:
+    """商品名・仕入先の近い台帳行が **1件に一意に** 定まるときだけその行を返す（AI の match 補完用）。"""
+    if df is None or df.empty:
+        return None
+    base = _ledger_in_stock_rows(df) if only_in_stock else df
+    if base.empty:
+        return None
+    pn = (product_name or "").strip()
+    su = (supplier or "").strip()
+    if not pn and not su:
+        return None
+    cand = _fuzzy_ledger_match_rows(base, pn, su, limit=limit)
+    if cand.shape[0] != 1:
+        return None
+    row = cand.iloc[0]
+    mid = str(row.get(COL_MANAGEMENT_ID, "") or "").strip()
+    return row if mid else None
+
+
+def _apply_purchase_ledger_match_supplement(
+    result: dict[str, Any],
+    df_ledger: pd.DataFrame | None,
+) -> dict[str, Any]:
+    """Gemini が match.management_id を返さないとき、台帳を曖昧照合して一意なら match を補う。"""
+    if not isinstance(result, dict) or df_ledger is None or df_ledger.empty:
+        return result
+    m0 = result.get("match")
+    m = m0 if isinstance(m0, dict) else {}
+    if str(m.get("management_id") or m.get("管理ID") or "").strip():
+        return result
+    pn = str(
+        result.get("product_name")
+        or result.get("商品名")
+        or m.get("product_name")
+        or ""
+    ).strip()
+    su = str(
+        result.get("supplier")
+        or result.get("仕入先・取引先")
+        or result.get("仕入先")
+        or result.get("取引先")
+        or m.get("supplier")
+        or ""
+    ).strip()
+    row = _single_row_fuzzy_ledger_match(
+        df_ledger, pn, su, only_in_stock=False, limit=12
+    )
+    if row is None:
+        return result
+    mid0 = str(row.get(COL_MANAGEMENT_ID, "") or "").strip()
+    if not mid0:
+        return result
+    mm = dict(m) if isinstance(m0, dict) else {}
+    mm["management_id"] = mid0
+    mm["confidence"] = max(float(mm.get("confidence") or 0), 0.78)
+    ly = _finite_int(row.get(COL_PRICE_EXCL), 0)
+    if ly > 0:
+        mm["line_price_excl"] = ly
+    if COL_CATEGORY in row.index:
+        ic = str(row.get(COL_CATEGORY, "") or "").strip()
+        if ic:
+            mm["inventory_category"] = ic
+    result["match"] = mm
+    return result
 
 
 def _infer_tax_rate_from_lines_vectorized(
@@ -1920,7 +2473,6 @@ def _recalc_gross_profit_dataframe(df: pd.DataFrame) -> pd.DataFrame:
         COL_STOCK_STATUS,
         COL_PRICE_EXCL,
         COL_PRICE_INCL,
-        COL_QTY,
         COL_PLANNED_SALE,
         COL_ACTUAL_SALE,
         COL_PLANNED_SALE_INCL,
@@ -1941,7 +2493,11 @@ def _recalc_gross_profit_dataframe(df: pd.DataFrame) -> pd.DataFrame:
 
     cogs = _i64_col(COL_PRICE_EXCL)
     line_in = _i64_col(COL_PRICE_INCL)
-    qty = np.maximum(_i64_col(COL_QTY), 1)
+    if COL_QTY in out.columns:
+        qv = _i64_col(COL_QTY)
+        qty = np.maximum(1, qv).astype(np.int64, copy=False)
+    else:
+        qty = np.ones(n, dtype=np.int64)
     pu = _i64_col(COL_PLANNED_SALE)
     au = _i64_col(COL_ACTUAL_SALE)
 
@@ -2029,18 +2585,19 @@ def _inventory_row_values_for_append(
     management_id: str,
     memo: str,
     *,
+    quantity: int = 1,
+    inventory_category: str = "",
     planned_sale_unit_excl_yen: int = 0,
     actual_sale_unit_excl_yen: int = 0,
     stock_status: str = STATUS_IN_STOCK,
     consumption_tax_rate: float | None = None,
-    sale_source_management_id: str = "",
     loan_datetime: str = "",
     voucher_recorded_at: str = "",
     voucher_evidence_url: str = "",
 ) -> list[Any]:
     """台帳 EXPECTED_HEADERS 順の1行分セル値を組み立てる（追記用）。"""
     cogs = _finite_int(line_price_excl_yen, 0)
-    qty_i = 1
+    qty_i = max(1, _finite_int(quantity, 1))
     pl_u = _finite_int(planned_sale_unit_excl_yen, 0)
     ac_u = _finite_int(actual_sale_unit_excl_yen, 0)
     stt = _normalize_stock_status(str(stock_status))
@@ -2076,7 +2633,7 @@ def _inventory_row_values_for_append(
         dt_a,
         product_name,
         supplier,
-        1,
+        qty_i,
         line_price_excl_yen,
         line_price_incl_yen,
         planned_unit_cell,
@@ -2086,10 +2643,10 @@ def _inventory_row_values_for_append(
         gross_cell,
         stt,
         memo,
+        (inventory_category or "").strip(),
         image_url,
         management_id,
         "",
-        (sale_source_management_id or "").strip(),
         (voucher_recorded_at or "").strip(),
         (voucher_evidence_url or "").strip(),
         dt_purchase,
@@ -2154,16 +2711,17 @@ def append_sheet_row(
     memo: str = "",
     record_datetime: str | None = None,
     *,
+    quantity: int = 1,
+    inventory_category: str = "",
     planned_sale_unit_excl_yen: int = 0,
     actual_sale_unit_excl_yen: int = 0,
     stock_status: str = STATUS_IN_STOCK,
     consumption_tax_rate: float | None = None,
-    sale_source_management_id: str = "",
     loan_datetime: str = "",
     voucher_recorded_at: str = "",
     voucher_evidence_url: str = "",
 ):
-    """1点1行で台帳に追記する（数量列は常に 1。仕入単価列は持たない）。
+    """1点1行で台帳に追記する（仕入単価列は持たない）。
 
     A列「日時」は **追記実行の JST**。仕入の暦は「仕入日時」に ``record_datetime``（EXIF 等）を渡す。
     """
@@ -2180,11 +2738,12 @@ def append_sheet_row(
         image_url,
         management_id,
         memo,
+        quantity=quantity,
+        inventory_category=inventory_category,
         planned_sale_unit_excl_yen=planned_sale_unit_excl_yen,
         actual_sale_unit_excl_yen=actual_sale_unit_excl_yen,
         stock_status=stock_status,
         consumption_tax_rate=consumption_tax_rate,
-        sale_source_management_id=sale_source_management_id,
         loan_datetime=loan_datetime,
         voucher_recorded_at=voucher_recorded_at,
         voucher_evidence_url=voucher_evidence_url,
@@ -2200,6 +2759,8 @@ def _sheet_header_row_to_expected_list(header: list[str], row: list[Any]) -> lis
     r2: list[str] = []
     for i, nm in enumerate(h):
         if nm == LEGACY_COL_UNIT_PRICE:
+            continue
+        if nm == LEGACY_COL_SALE_SOURCE_MGMT_ID:
             continue
         h2.append(nm)
         r2.append(rlist[i] if i < len(rlist) else "")
@@ -2219,8 +2780,10 @@ def load_inventory_dataframe() -> pd.DataFrame | None:
         return None
     wname = _secret_str(SECRET_GOOGLE_WORKSHEET_NAME, DEFAULT_WORKSHEET_NAME)
     bust = int(st.session_state.get(SESSION_KEY_INV_SHEET_CACHE_BUST, 0))
-    raw = _inventory_sheet_get_all_values_cached(str(sid), str(wname), bust)
-    if raw is None:
+    try:
+        raw = _inventory_sheet_get_all_values_cached(str(sid), str(wname), bust)
+    except Exception as e:
+        st.session_state["_inventory_sheet_load_error"] = str(e)
         return None
     if not raw:
         return pd.DataFrame(columns=EXPECTED_HEADERS)
@@ -2235,9 +2798,9 @@ def _ledger_hint_dataframe() -> pd.DataFrame | None:
     if not _uses_local_inventory_csv() and not _secret_str(SECRET_GOOGLE_SPREADSHEET_ID):
         return None
     try:
-        df = load_inventory_dataframe()
-        return df
-    except Exception:
+        return load_inventory_dataframe()
+    except Exception as e:
+        st.session_state["_ledger_hint_load_error"] = str(e)
         return None
 
 
@@ -2303,6 +2866,10 @@ def _sync_planned_sale_from_ledger_in_stock_match() -> None:
         )
     pl = _finite_int(hit.iloc[0].get(COL_PLANNED_SALE), 0)
     st.session_state.field_planned_sale_excl = max(0, int(pl))
+    if COL_CATEGORY in hit.columns:
+        cat0 = str(hit.iloc[0].get(COL_CATEGORY, "") or "").strip()
+        if cat0:
+            st.session_state.field_inventory_category = cat0
 
 
 def _on_ledger_pick_product_name() -> None:
@@ -2319,6 +2886,13 @@ def _on_ledger_pick_supplier() -> None:
         st.session_state.field_supplier = v
         st.session_state.ledger_pick_supplier = LEDGER_PICK_PLACEHOLDER
         _sync_planned_sale_from_ledger_in_stock_match()
+
+
+def _on_ledger_pick_inventory_category() -> None:
+    v = st.session_state.get("ledger_pick_inventory_category", "")
+    if v and v != LEDGER_PICK_PLACEHOLDER:
+        st.session_state.field_inventory_category = v
+        st.session_state.ledger_pick_inventory_category = LEDGER_PICK_PLACEHOLDER
 
 
 def _on_sale_pick_source_id() -> None:
@@ -2418,7 +2992,7 @@ def overwrite_inventory_worksheet_from_dataframe(
 
 
 def _ledger_df_loosen_numeric_columns_for_assignment(df: pd.DataFrame) -> None:
-    """StringDtype 等の厳格な列に int を代入すると失敗するため、金額・数量列を object に揃える（原地変更）。"""
+    """StringDtype 等の厳格な列に int を代入すると失敗するため、金額列を object に揃える（原地変更）。"""
     for _c in (
         COL_QTY,
         COL_PRICE_EXCL,
@@ -2449,7 +3023,7 @@ def lookup_ledger_row_by_management_id(
 
 
 def _split_management_ids_from_field(raw: str) -> list[str]:
-    """販売元管理ID欄をカンマ・読点・区切り文字・空白・改行で分割し、空を除いたリストを返す。"""
+    """管理IDの列挙文字列をカンマ・読点・区切り文字・空白・改行で分割し、空を除いたリストを返す。"""
     parts = re.split(r"[,、;；\s\n]+", (raw or "").strip())
     return [p.strip() for p in parts if p.strip()]
 
@@ -2468,7 +3042,7 @@ def apply_outbound_sale_to_ledger_by_management_id(
     """在庫中の1行を販売済に更新（新規行なし）。A列「日時」は確定実行の JST。出庫種別は ``sale_outbound_type``（例: 出庫（販売）／出庫（浮貸））。"""
     sid = (source_management_id or "").strip()
     if not sid:
-        raise ValueError("販売元管理ID（管理ID）が空です。")
+        raise ValueError("管理IDが空です。")
     df_src = load_inventory_dataframe()
     if df_src is None or df_src.empty:
         raise RuntimeError("台帳を読み込めませんでした。")
@@ -2508,7 +3082,6 @@ def apply_outbound_sale_to_ledger_by_management_id(
     df_src.loc[msk, COL_DATETIME] = now_exec
     df_src.loc[msk, COL_STOCK_STATUS] = STATUS_SOLD
     df_src.loc[msk, COL_ACTUAL_SALE] = av
-    df_src.loc[msk, COL_SALE_SOURCE_MGMT_ID] = ""
     cur_img = str(df_src.loc[msk, COL_IMAGE_URL].iloc[0] or "").strip()
     nu = (new_image_url or "").strip()
     if not cur_img and nu:
@@ -2573,35 +3146,57 @@ def apply_outbound_loan_in_stock_datetime_by_management_id(
     overwrite_inventory_worksheet_from_dataframe(df_src)
 
 
-def apply_last_stocktake_jst_for_management_id(management_id: str) -> None:
-    """在庫中の1行について「最後に確認した日付（棚卸日）」を本日（JST）にし、日時を更新して保存する。"""
-    sid = (management_id or "").strip()
-    if not sid:
-        raise ValueError("管理IDが空です。")
+def apply_last_stocktake_jst_for_management_ids(
+    management_ids: Iterable[str],
+) -> tuple[int, list[str]]:
+    """複数の在庫中の行について棚卸日を本日（JST）にし、1回の読込・保存で反映する。
+
+    戻り値: (更新に成功した件数, スキップ理由の短文リスト。重複・不在・在庫外などはスキップ)
+    """
+    ids = {str(x).strip() for x in management_ids if str(x).strip()}
+    if not ids:
+        raise ValueError("管理IDが1件以上必要です。")
     df_src = load_inventory_dataframe()
     if df_src is None or df_src.empty:
         raise RuntimeError("台帳を読み込めませんでした。")
     df_src = df_src.reindex(columns=EXPECTED_HEADERS, fill_value="").copy()
     _ledger_df_loosen_numeric_columns_for_assignment(df_src)
-    msk = df_src[COL_MANAGEMENT_ID].astype(str).str.strip() == sid
-    if not msk.any():
-        raise RuntimeError(f"管理ID {sid} の行が台帳に見つかりません。")
-    if int(msk.sum()) != 1:
-        raise RuntimeError(f"管理ID {sid} が複数行に重複しています。")
-    cur_st = _normalize_stock_status(
-        str(df_src.loc[msk, COL_STOCK_STATUS].iloc[0])
-    )
-    if cur_st != STATUS_IN_STOCK:
-        raise RuntimeError(
-            f"管理ID {sid} は在庫中ではないため棚卸確定できません（現在: {cur_st}）。"
-        )
     today_s = _today_jst_date().isoformat()
     now_exec = jst_now_str()
-    if COL_LAST_STOCKTAKE in df_src.columns:
-        df_src.loc[msk, COL_LAST_STOCKTAKE] = today_s
-    df_src.loc[msk, COL_DATETIME] = now_exec
+    updated: set[str] = set()
+    skips: list[str] = []
+    for sid in sorted(ids):
+        msk = df_src[COL_MANAGEMENT_ID].astype(str).str.strip() == sid
+        if not msk.any():
+            skips.append(f"{sid}: 台帳に見つかりません")
+            continue
+        if int(msk.sum()) != 1:
+            skips.append(f"{sid}: 管理IDが重複しています")
+            continue
+        cur_st = _normalize_stock_status(
+            str(df_src.loc[msk, COL_STOCK_STATUS].iloc[0])
+        )
+        if cur_st != STATUS_IN_STOCK:
+            skips.append(f"{sid}: 在庫中ではない（{cur_st}）")
+            continue
+        if COL_LAST_STOCKTAKE in df_src.columns:
+            df_src.loc[msk, COL_LAST_STOCKTAKE] = today_s
+        df_src.loc[msk, COL_DATETIME] = now_exec
+        updated.add(sid)
+    if not updated:
+        raise RuntimeError(
+            "更新できる在庫中の行がありませんでした。"
+            + (f" 詳細: {'; '.join(skips[:6])}" if skips else "")
+        )
     df_src = _recalc_gross_profit_dataframe(df_src)
     overwrite_inventory_worksheet_from_dataframe(df_src)
+    _inv_stocktake_work_remaining_note_done(updated)
+    return len(updated), skips
+
+
+def apply_last_stocktake_jst_for_management_id(management_id: str) -> None:
+    """在庫中の1行について「最後に確認した日付（棚卸日）」を本日（JST）にし、日時を更新して保存する。"""
+    apply_last_stocktake_jst_for_management_ids([management_id])
 
 
 def _apply_ledger_sort(
@@ -2704,15 +3299,23 @@ def _prepare_ledger_analysis(df: pd.DataFrame) -> pd.DataFrame:
     """入出庫判定・行金額・年月などの派生列を付与したコピーを返す。
 
     1点1行ライフサイクル前提: **在庫中** かつ **入庫** だけを仕入（入庫）側に計上し、
-    **販売済** かつ実売がある行は **実売行計（税抜・税込）** を売上（出庫）側に計上する
-    （「入庫種別」が空の在庫中は入庫扱い。販売済＋実売で売上を計上し、仕入金額を二重に出庫しない）。
-    **在庫中** のまま **出庫**（浮貸など別レコード）の行は、従来どおり仕入列ベースで出庫に含める。
+    **販売済** かつ実売がある行は **出庫側の金額を実売ではなく当行の仕入金額（税抜・税込）** で計上する
+    （「入庫種別」が空の在庫中は入庫扱い。数量の出庫計上は販売済＋実売で行い、金額の入出庫は仕入列で統一）。
+    **在庫中** のまま **出庫**（浮貸など）の行は仕入列ベースで出庫に含める。
     """
     d = df.copy()
     if d.empty:
         return d
     d[COL_DATETIME] = pd.to_datetime(d[COL_DATETIME], errors="coerce")
-    qty = _series_to_numeric_loose(d[COL_QTY]).fillna(0)
+    if COL_QTY in d.columns:
+        qty = (
+            pd.to_numeric(d[COL_QTY], errors="coerce")
+            .fillna(1.0)
+            .clip(lower=1.0)
+            .astype(float)
+        )
+    else:
+        qty = pd.Series(1.0, index=d.index, dtype=float)
     line_stored_ex = _series_to_numeric_loose(d[COL_PRICE_EXCL]).fillna(0)
     line_stored_in = _series_to_numeric_loose(d[COL_PRICE_INCL]).fillna(0)
     if COL_STOCK_STATUS in d.columns:
@@ -2750,9 +3353,6 @@ def _prepare_ledger_analysis(df: pd.DataFrame) -> pd.DataFrame:
     ac_u = _series_to_numeric_loose(
         d[COL_ACTUAL_SALE] if COL_ACTUAL_SALE in d.columns else 0
     ).fillna(0)
-    ac_incl_line = _series_to_numeric_loose(
-        d[COL_ACTUAL_SALE_INCL] if COL_ACTUAL_SALE_INCL in d.columns else 0
-    ).fillna(0)
     rev_ex = (ac_u * qty).clip(lower=0)
     m_stock_in = is_in_mv & (st_col == STATUS_IN_STOCK)
     # 販売済は実売ベースで売上計上（区分がまだ入庫の旧行も、実売があればここに含める）
@@ -2764,12 +3364,13 @@ def _prepare_ledger_analysis(df: pd.DataFrame) -> pd.DataFrame:
     d["_amt_in_in"] = line_in.where(m_stock_in, 0.0).fillna(0).astype(float)
 
     d["_qty_out"] = qty.where(m_sold_rev | m_float_out, 0.0).fillna(0).astype(float)
+    # 金額の入出庫はいずれも当行の仕入金額（税抜・税込）で統一（販売済の実売は金額集計に使わない）
     d["_amt_ex_out"] = (
-        rev_ex.where(m_sold_rev, 0.0).fillna(0)
+        line_ex.where(m_sold_rev, 0.0).fillna(0)
         + line_ex.where(m_float_out, 0.0).fillna(0)
     ).astype(float)
     d["_amt_in_out"] = (
-        ac_incl_line.where(m_sold_rev, 0.0).fillna(0)
+        line_in.where(m_sold_rev, 0.0).fillna(0)
         + line_in.where(m_float_out, 0.0).fillna(0)
     ).astype(float)
 
@@ -2778,6 +3379,13 @@ def _prepare_ledger_analysis(df: pd.DataFrame) -> pd.DataFrame:
     d["_year"] = axis_dt.dt.year
     d["_month"] = axis_dt.dt.month
     return d
+
+
+def _dash_ratio_pct(numer: int, denom: int) -> str:
+    """入庫÷合計の比率表示（分母0はダッシュ）。"""
+    if denom <= 0:
+        return "—"
+    return f"{100.0 * float(numer) / float(denom):.1f}%"
 
 
 def _ledger_dashboard_date_bounds(df: pd.DataFrame) -> tuple[date, date]:
@@ -2804,9 +3412,9 @@ def render_ledger_dashboard(df: pd.DataFrame) -> None:
     st.subheader("集計")
     st.caption(
         "上の表の現在の内容（未保存の編集を含む）を集計します。"
-        f"金額はシートの「{COL_PRICE_EXCL}」「{COL_PRICE_INCL}」列を行合計として集計します。"
+        f"入出庫の **金額** は「{COL_PRICE_EXCL}」「{COL_PRICE_INCL}」（仕入・税抜・税込）を行合計として集計します（販売済行の出庫側も実売ではなく当行の仕入金額で計上）。"
         f"仕入先・取引先別の粗利は「{COL_GROSS_PROFIT}」列を合算しています（税抜・台帳保存時の値）。"
-        "出庫（販売）は **在庫行の更新** のみのため、入庫／出庫の数量・金額は **在庫中＝仕入**、**販売済＝実売** を二重計上しないよう派生列で計上しています。"
+        f"入出庫の **数量** は「{COL_QTY}」列（空・未入力は **1**）を在庫中の入庫行・販売済で実売がある行で合算します。"
         "期間フィルタと月次の軸は **販売済は販売日時**（未入力の旧行は日時にフォールバック）、在庫中は **日時** です。"
         "（税抜の仕入金額が空で税込だけある行は、10%/8%/非課税のいずれかに税込が一致する税抜を逆算します。"
         "カンマ区切り・円記号付きの数値も読み取ります。）"
@@ -2816,12 +3424,14 @@ def render_ledger_dashboard(df: pd.DataFrame) -> None:
         return
 
     df_in = df.copy()
-    for _col in (
-        COL_QTY,
-        COL_PRICE_EXCL,
-        COL_PRICE_INCL,
-        COL_GROSS_PROFIT,
-    ):
+    if COL_QTY in df_in.columns:
+        df_in[COL_QTY] = (
+            _series_to_numeric_loose(df_in[COL_QTY])
+            .replace([np.inf, -np.inf], np.nan)
+            .fillna(1)
+            .clip(lower=1)
+        )
+    for _col in (COL_PRICE_EXCL, COL_PRICE_INCL, COL_GROSS_PROFIT):
         if _col in df_in.columns:
             df_in[_col] = (
                 _series_to_numeric_loose(df_in[_col])
@@ -2870,13 +3480,16 @@ def render_ledger_dashboard(df: pd.DataFrame) -> None:
     if supplier_filter:
         flt = flt[flt[COL_SUPPLIER].astype(str).isin(supplier_filter)]
 
-    ad_sup = ad_f
-    if supplier_filter:
-        ad_sup = ad_sup[ad_sup[COL_SUPPLIER].astype(str).isin(supplier_filter)]
-    stock_cogs_total = 0
-    if COL_PRICE_EXCL in ad_sup.columns:
-        stock_cogs_total = _finite_int(
-            _series_to_numeric_loose(ad_sup[COL_PRICE_EXCL]).fillna(0).sum(),
+    period_cogs_ex = 0
+    if COL_PRICE_EXCL in flt.columns:
+        period_cogs_ex = _finite_int(
+            _series_to_numeric_loose(flt[COL_PRICE_EXCL]).fillna(0).sum(),
+            0,
+        )
+    period_cogs_in = 0
+    if COL_PRICE_INCL in flt.columns:
+        period_cogs_in = _finite_int(
+            _series_to_numeric_loose(flt[COL_PRICE_INCL]).fillna(0).sum(),
             0,
         )
     gp_sold_period = 0
@@ -2893,14 +3506,16 @@ def render_ledger_dashboard(df: pd.DataFrame) -> None:
         )
     st.markdown("##### ライフサイクル指標")
     st.caption(
-        "税抜原価の総額は **日付は問わず**（仕入先フィルタのみ適用）で、在庫中・販売済を問わず "
-        f"**{COL_PRICE_EXCL}** 列を合算します。"
-        "確定粗利は **From〜To と仕入先フィルタ内** の販売済行の粗利列の合計です。"
+        "次の3つは **From〜To・仕入先フィルタ** に合致する行のみを対象にします（数量列による追加の絞り込みはありません）。"
+        f"原価は台帳の **{COL_PRICE_EXCL}** / **{COL_PRICE_INCL}** を合算した税抜・税込の総額です。"
+        "確定粗利は **販売済** 行の粗利列（税抜）の合計です。"
     )
-    _lc1, _lc2 = st.columns(2)
+    _lc1, _lc2, _lc3 = st.columns(3)
     with _lc1:
-        st.metric("税抜原価総額（ステータス不問）", f"¥{stock_cogs_total:,}")
+        st.metric("税抜原価総額（期間内）", f"¥{period_cogs_ex:,}")
     with _lc2:
+        st.metric("税込原価総額（期間内）", f"¥{period_cogs_in:,}")
+    with _lc3:
         st.metric("確定粗利（期間内・販売済・税抜）", f"¥{gp_sold_period:,}")
 
     if flt.empty:
@@ -2912,31 +3527,45 @@ def render_ledger_dashboard(df: pd.DataFrame) -> None:
 
     q_in = _finite_int(flt["_qty_in"].sum(), 0)
     q_out = _finite_int(flt["_qty_out"].sum(), 0)
-    q_net = q_in - q_out
+    q_sum = q_in + q_out
     ex_in = _finite_int(flt["_amt_ex_in"].sum(), 0)
     ex_out = _finite_int(flt["_amt_ex_out"].sum(), 0)
-    ex_net = ex_in - ex_out
     in_in = _finite_int(flt["_amt_in_in"].sum(), 0)
     in_out = _finite_int(flt["_amt_in_out"].sum(), 0)
-    in_net = in_in - in_out
 
-    m1, m2, m3 = st.columns(3)
+    st.markdown("##### 期間内の数量")
+    q_ratio = _dash_ratio_pct(q_in, q_sum)
+    m1, m2, m3, m4 = st.columns(4)
     m1.metric("入庫 合計数量", f"{q_in:,}")
     m2.metric("出庫 合計数量", f"{q_out:,}")
-    m3.metric("差し引き 数量（入−出）", f"{q_net:,}")
-    m5, m6, m7, m8, m9 = st.columns(5)
+    m3.metric("合計数量（入+出）", f"{q_sum:,}")
+    m4.metric("入庫÷合計（数量比率）", q_ratio)
+
+    ex_sum = ex_in + ex_out
+    in_sum = in_in + in_out
+    ex_ratio = _dash_ratio_pct(ex_in, ex_sum)
+    in_ratio = _dash_ratio_pct(in_in, in_sum)
+
+    st.markdown("##### 期間内の金額（仕入ベース・税抜）")
+    m5, m6, m10, m11 = st.columns(4)
     m5.metric("入庫 合計金額（税抜）", f"¥{ex_in:,}")
     m6.metric("出庫 合計金額（税抜）", f"¥{ex_out:,}")
-    m7.metric("差し引き 税抜（入−出）", f"¥{ex_net:,}")
-    m8.metric("差し引き 税込（入−出）", f"¥{in_net:,}")
-    with m9:
-        if COL_GROSS_PROFIT in flt.columns:
-            gp_tot = _finite_int(
-                _series_to_numeric_loose(flt[COL_GROSS_PROFIT]).fillna(0).sum(), 0
-            )
-            st.metric("粗利合計（税抜）", f"¥{gp_tot:,}")
-        else:
-            st.metric("粗利合計（税抜）", "—")
+    m10.metric("合計金額（入+出・税抜）", f"¥{ex_sum:,}")
+    m11.metric("入庫÷合計（税抜比率）", ex_ratio)
+    if COL_GROSS_PROFIT in flt.columns:
+        gp_tot = _finite_int(
+            _series_to_numeric_loose(flt[COL_GROSS_PROFIT]).fillna(0).sum(), 0
+        )
+        st.metric("粗利合計（税抜）", f"¥{gp_tot:,}")
+    else:
+        st.metric("粗利合計（税抜）", "—")
+
+    st.markdown("##### 期間内の金額（仕入ベース・税込）")
+    m7, m8, m12, m13 = st.columns(4)
+    m7.metric("入庫 合計金額（税込）", f"¥{in_in:,}")
+    m8.metric("出庫 合計金額（税込）", f"¥{in_out:,}")
+    m12.metric("合計金額（入+出・税込）", f"¥{in_sum:,}")
+    m13.metric("入庫÷合計（税込比率）", in_ratio)
 
     st.markdown("##### 仕入先・取引先別サマリー（税抜金額・数量・粗利）")
     sup_col = "仕入先・取引先"
@@ -3074,7 +3703,7 @@ def render_ledger_dashboard(df: pd.DataFrame) -> None:
 
     st.markdown("##### 月次推移（金額・税抜）")
     st.caption(
-        "数量グラフと同じ月次集計で、入庫・出庫の税抜金額を並べた棒グラフです（積み上げではありません）。"
+        "数量グラフと同じ月次集計で、入庫・出庫の税抜金額（いずれも **仕入金額ベース**）を並べた棒グラフです（積み上げではありません）。"
     )
     if not monthly.empty:
         month_order = monthly["_ym"].astype(str).tolist()
@@ -3122,7 +3751,7 @@ def render_ledger_dashboard(df: pd.DataFrame) -> None:
 
     st.markdown("##### 金額推移（税抜）")
     st.caption(
-        "その月までの入庫・出庫それぞれの税抜金額の**累計**（いわゆる累積）を、"
+        "その月までの入庫・出庫それぞれの税抜金額（**仕入金額ベース**）の**累計**（いわゆる累積）を、"
         "各月で入庫・出庫の2本の棒として並べたグラフです。"
         "上の From〜To・仕入先・取引先の絞り込みに従います。"
     )
@@ -3172,7 +3801,7 @@ def render_ledger_dashboard(df: pd.DataFrame) -> None:
         st.caption("累積金額グラフを表示できる月次データがありません。")
 
     st.markdown("##### 仕入先・取引先別 税抜金額（変動幅の大きい順・上位15件）")
-    st.caption("各仕入先・取引先で入庫・出庫の税抜金額を並べた棒グラフです。")
+    st.caption("各仕入先・取引先で入庫・出庫の税抜金額（**仕入金額ベース**）を並べた棒グラフです。")
     chart_src = (
         grp.set_index(sup_col)[["入庫金額税抜", "出庫金額税抜"]]
         .assign(_abs=lambda x: (x["入庫金額税抜"] - x["出庫金額税抜"]).abs())
@@ -3301,7 +3930,7 @@ def _render_inventory_price_summary(df: pd.DataFrame) -> None:
     st.markdown("##### 価格管理サマリー（在庫中）")
     st.caption(
         "上の表のうち、ステータスが「在庫中」の行だけを合算しています（未保存の編集を含みます）。"
-        "「販売予定金額（税抜）」列の値×数量の税抜行計、税込列は仕入行と同じ税率で算出した値の合計です。"
+        f"「販売予定金額（税抜）」は1点あたりとして **{COL_QTY}** を掛けた行計の合計、税込列は再計算後の値の合計です。"
     )
     if df is None or df.empty:
         return
@@ -3315,8 +3944,11 @@ def _render_inventory_price_summary(df: pd.DataFrame) -> None:
         return
     cg = sub[COL_PRICE_EXCL].map(_int_from_cell)
     pl_u = sub[COL_PLANNED_SALE].map(_int_from_cell)
-    qv = sub[COL_QTY].map(lambda x: max(1, _int_from_cell(x)))
-    pl_line_ex = pl_u * qv
+    if COL_QTY in sub.columns:
+        rq = sub[COL_QTY].map(lambda x: max(1, _finite_int(x, 1)))
+    else:
+        rq = pd.Series(1, index=sub.index, dtype=int)
+    pl_line_ex = pl_u * rq.astype(np.int64, copy=False)
     pl_in = sub[COL_PLANNED_SALE_INCL].map(_int_from_cell)
     total_cogs = int(cg.sum())
     total_planned_excl = int(pl_line_ex.sum())
@@ -3331,21 +3963,218 @@ def _render_inventory_price_summary(df: pd.DataFrame) -> None:
 
 
 def _product_keyword_category(name: str) -> str:
-    """ダッシュボード用の簡易カテゴリ（商品名のキーワードから推定）。"""
+    """ダッシュボード用の簡易カテゴリ（商品名のキーワードから推定。該当なしはその他）。"""
     s = str(name or "")
-    if re.search("振袖", s):
-        return "振袖"
-    if re.search("訪問着", s):
-        return "訪問着"
-    if re.search("帯", s):
+    if not s.strip():
+        return "その他"
+    # 帯本体より先に付属小物を判定（「帯」単独マッチの取りこぼし防止）
+    if re.search(r"(帯締|帯揚|帯留|シャール|ストール|草履|下駄|バッグ|巾着)", s):
+        return "小物・装飾"
+    if re.search(r"(名古屋帯|袋帯|半幅帯|角帯|丸帯|兵児帯|博多帯|献上帯)", s):
         return "帯"
-    if re.search("長襦袢|襦袢", s):
-        return "長襦袢・襦袢"
+    if re.search(r"帯", s):
+        return "帯"
+    if re.search(r"(長襦袢|半襦袢|襦袢|肌着)", s):
+        return "長襦袢・肌着類"
+    if re.search(r"振袖", s):
+        return "振袖"
+    if re.search(r"訪問着", s):
+        return "訪問着"
+    if re.search(r"(留袖|黒留)", s):
+        return "留袖"
+    if re.search(r"(色無地|紬|小紋|絽|江戸褞袍|付け下げ)", s):
+        return "着物（色無地・紬等）"
+    if re.search(r"(男|紳士|羽織袴)", s):
+        return "紳士・男物"
     return "その他"
 
 
-def _render_inventory_category_pie_altair(pie_df: pd.DataFrame) -> None:
+def _inventory_category_cache_path() -> Path:
+    return Path(__file__).resolve().parent / INVENTORY_CATEGORY_CACHE_FILENAME
+
+
+def _inventory_category_cache_key(product_name: str, supplier: str = "") -> str:
+    """商品名＋仕入先でキャッシュ参照用のキー（大小・前後空白は正規化）。"""
+    n = (product_name or "").strip()
+    if not n:
+        return ""
+    s = (supplier or "").strip()
+    return f"{n.casefold()}\t{s.casefold()}" if s else n.casefold()
+
+
+def _inventory_category_cache_load() -> dict[str, str]:
+    p = _inventory_category_cache_path()
+    if not p.is_file():
+        return {}
+    try:
+        raw = json.loads(p.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError, TypeError, ValueError):
+        return {}
+    if not isinstance(raw, dict):
+        return {}
+    out: dict[str, str] = {}
+    for k, v in raw.items():
+        ks = str(k).strip()
+        if not ks or not isinstance(v, str):
+            continue
+        vv = v.strip()
+        if vv:
+            out[ks] = vv[:80]
+    return out
+
+
+def _inventory_category_cache_write(mapping: dict[str, str]) -> None:
+    p = _inventory_category_cache_path()
+    data = {k: mapping[k] for k in sorted(mapping.keys())}
+    tmp = p.with_name(p.name + ".tmp")
+    try:
+        tmp.write_text(
+            json.dumps(data, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+        tmp.replace(p)
+    except OSError:
+        try:
+            if tmp.is_file():
+                tmp.unlink()
+        except OSError:
+            pass
+
+
+def _inventory_category_cache_merge(updates: dict[str, str]) -> int:
+    """キャッシュに反映したキー数（新規または値が変わったもののみカウント）。"""
+    if not updates:
+        return 0
+    cur = _inventory_category_cache_load()
+    changed = 0
+    for k, v in updates.items():
+        ks = str(k).strip()
+        if not ks or not isinstance(v, str):
+            continue
+        vv = v.strip()[:80]
+        if not vv:
+            continue
+        if cur.get(ks) != vv:
+            changed += 1
+        cur[ks] = vv
+    _inventory_category_cache_write(cur)
+    return changed
+
+
+def _resolve_inventory_category_label(
+    row: pd.Series,
+    cache: dict[str, str],
+) -> str:
+    """構成比用ラベル: 台帳列 → ローカルキャッシュ → 和装向けキーワード。"""
+    if COL_CATEGORY in row.index:
+        cell = str(row.get(COL_CATEGORY, "") or "").strip()
+        if cell:
+            return cell[:80]
+    name = str(row.get(COL_NAME, "") or "").strip()
+    sup = str(row.get(COL_SUPPLIER, "") or "").strip()
+    ck = _inventory_category_cache_key(name, sup)
+    if ck and ck in cache:
+        return str(cache[ck]).strip()[:80]
+    return _product_keyword_category(name)
+
+
+def _apply_inventory_category_map_to_dataframe(
+    df: pd.DataFrame,
+    mapping: dict[str, str],
+    *,
+    only_in_stock: bool,
+    only_empty: bool,
+    overwrite: bool,
+) -> tuple[pd.DataFrame, int]:
+    """mapping のキー（_inventory_category_cache_key）に一致する行の COL_CATEGORY を更新。更新行数を返す。"""
+    if COL_CATEGORY not in df.columns or COL_NAME not in df.columns:
+        return df, 0
+    out = df.copy()
+    if COL_STOCK_STATUS in out.columns:
+        stt = out[COL_STOCK_STATUS].astype(str).map(_normalize_stock_status)
+        m_in = stt == STATUS_IN_STOCK
+    else:
+        m_in = pd.Series(True, index=out.index)
+    n_up = 0
+    for idx in out.index:
+        if only_in_stock and not bool(m_in.loc[idx]):
+            continue
+        cur = str(out.loc[idx, COL_CATEGORY] or "").strip()
+        if only_empty and cur:
+            continue
+        if not overwrite and cur:
+            continue
+        pn = str(out.loc[idx, COL_NAME] or "").strip()
+        sp = (
+            str(out.loc[idx, COL_SUPPLIER] or "").strip()
+            if COL_SUPPLIER in out.columns
+            else ""
+        )
+        ck = _inventory_category_cache_key(pn, sp)
+        if ck in mapping and str(mapping[ck]).strip():
+            out.loc[idx, COL_CATEGORY] = str(mapping[ck]).strip()[:80]
+            n_up += 1
+    return out, n_up
+
+
+def infer_inventory_categories_with_gemini(
+    pairs: list[tuple[str, str]],
+) -> dict[str, str]:
+    """(商品名, 仕入先) の組ごとに在庫カテゴリーラベルを推定し、キャッシュキー → ラベルを返す。"""
+    if not pairs:
+        return {}
+    api_key = _secret_str(SECRET_GEMINI_API_KEY)
+    if not api_key:
+        raise RuntimeError(
+            f"{SECRET_GEMINI_API_KEY} が設定されていません。`.streamlit/secrets.toml` を確認してください。"
+        )
+    genai.configure(api_key=api_key)
+    model = genai.GenerativeModel(_gemini_model_name())
+    lines: list[str] = []
+    for i, (pn, sp) in enumerate(pairs, start=1):
+        lines.append(
+            f"{i}. product: {json.dumps(pn, ensure_ascii=False)}, "
+            f"supplier: {json.dumps(sp, ensure_ascii=False)}"
+        )
+    block = "\n".join(lines)
+    prompt = f"""あなたは小売・卸の在庫分析のための分類アシスタントです（業種は問いません。呉服以外も同様に扱う）。
+次の各行は「商品名」「仕入先・取引先」の組です。円グラフ向けに、**短い在庫カテゴリー名**（全角含め20文字以内・同種商品は同じラベルに統一）を付けてください。
+
+ルール:
+- ラベルは可能な限り少ない種類にまとめ、在庫ポートフォリオの把握に役立つ粒度にする。
+- 出力は **純粋な JSON オブジェクト1個だけ**（説明・Markdown・コードフェンス禁止）。
+- キーは "items" のみ。値は配列で、各要素は "product"（入力と同一文字列）, "supplier"（入力と同一。無ければ ""）, "category"（ラベル文字列）。
+- 与えられた全行について必ず1要素ずつ返す（欠落禁止）。迷ったら "その他"。
+
+--- 対象行 ---
+{block}
+"""
+    response = model.generate_content(prompt)
+    text = (response.text or "").strip()
+    data = _parse_json_from_model(text)
+    items = data.get("items")
+    if not isinstance(items, list):
+        return {}
+    out: dict[str, str] = {}
+    for it in items:
+        if not isinstance(it, dict):
+            continue
+        pn = str(it.get("product", "") or "").strip()
+        if not pn:
+            continue
+        sp = str(it.get("supplier", "") or "").strip()
+        cat = str(it.get("category", "") or "").strip()[:80]
+        if not cat:
+            cat = "その他"
+        out[_inventory_category_cache_key(pn, sp)] = cat
+    return out
+
+
+def _render_inventory_category_pie_altair(
+    pie_df: pd.DataFrame, *, chart_title: str | None = None
+) -> None:
     """Plotly 未導入時のカテゴリ構成比（円グラフ相当）。"""
+    ttl = chart_title or "原価シェア（在庫カテゴリー・Altair）"
     chart = (
         alt.Chart(pie_df)
         .mark_arc(innerRadius=55)
@@ -3358,32 +4187,72 @@ def _render_inventory_category_pie_altair(pie_df: pd.DataFrame) -> None:
             ],
         )
         .properties(
-            title="在庫中の原価シェア（簡易カテゴリ・Altair）",
+            title=ttl,
             height=400,
         )
     )
     st.altair_chart(chart, use_container_width=True)
 
 
-def _render_inventory_category_pie(pie_df: pd.DataFrame) -> None:
+def _render_inventory_category_pie(
+    pie_df: pd.DataFrame, *, chart_title: str | None = None
+) -> None:
     """plotly が入っていれば ``st.plotly_chart``、なければ Altair にフォールバック。"""
     if float(pie_df["金額税抜"].sum()) <= 0:
-        st.caption("在庫中で原価が入っている行がありません。")
+        st.caption("対象ステータスで原価が入っている行がありません。")
         return
+    ttl = chart_title or "原価シェア（在庫カテゴリー）"
     try:
         import plotly.express as px
     except ImportError:
-        _render_inventory_category_pie_altair(pie_df)
+        _render_inventory_category_pie_altair(pie_df, chart_title=ttl)
         return
     fig = px.pie(
         pie_df,
         names="カテゴリー",
         values="金額税抜",
         hole=0.35,
-        title="在庫中の原価シェア（簡易カテゴリ）",
+        title=ttl,
     )
     fig.update_traces(textposition="inside", textinfo="percent+label")
     st.plotly_chart(fig, use_container_width=True)
+
+
+def _analytics_table_multisort(
+    df: pd.DataFrame, specs: list[tuple[str, bool]]
+) -> pd.DataFrame:
+    """分析の対象行一覧用。複数列を mergesort で安定ソート（日時・金額列は型変換して比較）。"""
+    out = df.copy()
+    keys: list[str] = []
+    ascending: list[bool] = []
+    drops: list[str] = []
+    for i, (col, asc) in enumerate(specs):
+        if not col or col not in out.columns:
+            continue
+        if col == COL_DATETIME:
+            k = f"___an_sort_dt_{i}"
+            out[k] = pd.to_datetime(out[col], errors="coerce")
+            drops.append(k)
+            keys.append(k)
+            ascending.append(asc)
+        elif col in (COL_PRICE_EXCL, COL_GROSS_PROFIT, COL_QTY):
+            k = f"___an_sort_num_{i}"
+            out[k] = pd.to_numeric(out[col], errors="coerce")
+            drops.append(k)
+            keys.append(k)
+            ascending.append(asc)
+        else:
+            keys.append(col)
+            ascending.append(asc)
+    if not keys:
+        return out
+    out = out.sort_values(
+        by=keys,
+        ascending=ascending,
+        na_position="last",
+        kind="mergesort",
+    )
+    return out.drop(columns=drops, errors="ignore")
 
 
 def render_analytics_dashboard_page() -> None:
@@ -3415,8 +4284,35 @@ def render_analytics_dashboard_page() -> None:
         render_ledger_dashboard(calc)
         return
 
-    mask_stock = calc[COL_STOCK_STATUS].astype(str).str.strip() == STATUS_IN_STOCK
-    sub = calc.loc[mask_stock].copy()
+    st.markdown("##### 分析の対象・構成比の並び")
+    st.caption(
+        "上段の **ステータス** で、このページのメトリクス・円グラフ・AI 推定の対象行を絞り込みます（在庫中だけ／販売済だけ／両方など）。"
+        "下段の **構成比の並び** は円グラフの凡例・扇の順に反映されます。"
+    )
+    _ac1, _ac2 = st.columns(2)
+    with _ac1:
+        _sel_st = st.multiselect(
+            "ステータス（対象に含める）",
+            options=list(STOCK_STATUS_OPTIONS),
+            default=[STATUS_IN_STOCK],
+            key="analytics_status_include",
+        )
+    with _ac2:
+        _pie_sort = st.selectbox(
+            "構成比（円グラフ）のカテゴリー並び",
+            options=["金額の多い順", "金額の少ない順", "カテゴリー名（昇順）"],
+            index=0,
+            key="analytics_pie_category_sort",
+        )
+    if not _sel_st:
+        st.warning("ステータスを1つ以上選んでください（未選択のときは在庫中のみにします）。")
+        _sel_st = [STATUS_IN_STOCK]
+    _sel_norm = [_normalize_stock_status(str(s)) for s in _sel_st]
+    _status_lbl = "・".join(_sel_norm)
+    _mask_status = (
+        calc[COL_STOCK_STATUS].astype(str).map(_normalize_stock_status).isin(_sel_norm)
+    )
+    sub = calc.loc[_mask_status].copy()
     cg = _series_to_numeric_loose(sub[COL_PRICE_EXCL]).fillna(0).clip(lower=0)
     total_inv = int(cg.sum())
     n_lines = int(len(sub))
@@ -3430,20 +4326,120 @@ def render_analytics_dashboard_page() -> None:
     avg_ratio = float(np.mean(ratios)) if ratios else None
 
     k1, k2, k3 = st.columns(3)
-    k1.metric("在庫中 総額（仕入・税抜）", f"¥{total_inv:,}")
-    k2.metric("在庫中 行数（点数）", f"{n_lines:,}")
+    k1.metric(f"対象（{_status_lbl}）総額（仕入・税抜）", f"¥{total_inv:,}")
+    k2.metric(f"対象（{_status_lbl}）行数", f"{n_lines:,}")
     k3.metric(
-        "在庫中 平均粗利率（粗利÷原価）",
+        f"対象（{_status_lbl}）平均粗利率（粗利÷原価）",
         f"{avg_ratio:.1f} %" if avg_ratio is not None else "—",
     )
 
     st.markdown("##### カテゴリー別 在庫原価（税抜）の構成比")
-    st.caption("商品名に含まれるキーワードで振り分けたうえで、在庫中の仕入金額（税抜）を合算しています。")
-    sub["_category"] = sub[COL_NAME].astype(str).map(_product_keyword_category)
+    st.caption(
+        f"対象ステータス: **{_status_lbl}**。優先順: ①台帳の **{COL_CATEGORY}** 列 ②"
+        f"**{INVENTORY_CATEGORY_CACHE_FILENAME}**（在庫一覧の AI 一括などで更新） ③和装向けキーワード ④**その他**。"
+        "金額は仕入金額（税抜）を行で合算（数量列があるときは原価×数量）。"
+    )
+    _cat_cache = _inventory_category_cache_load()
+    sub["_category"] = sub.apply(
+        lambda r: _resolve_inventory_category_label(r, _cat_cache), axis=1
+    )
     sub["_px"] = _series_to_numeric_loose(sub[COL_PRICE_EXCL]).fillna(0)
+    if COL_QTY in sub.columns:
+        _rq_pie = sub[COL_QTY].map(lambda x: max(1, _finite_int(x, 1)))
+        sub["_px"] = sub["_px"] * _rq_pie
     pie_df = sub.groupby("_category", dropna=False)["_px"].sum().reset_index()
     pie_df.columns = ["カテゴリー", "金額税抜"]
-    _render_inventory_category_pie(pie_df)
+    if _pie_sort == "金額の多い順":
+        pie_df = pie_df.sort_values("金額税抜", ascending=False, kind="mergesort")
+    elif _pie_sort == "金額の少ない順":
+        pie_df = pie_df.sort_values("金額税抜", ascending=True, kind="mergesort")
+    else:
+        pie_df = pie_df.sort_values("カテゴリー", ascending=True, kind="mergesort")
+    _pie_chart_title = f"原価シェア（在庫カテゴリー）— {_status_lbl}"
+    _render_inventory_category_pie(pie_df, chart_title=_pie_chart_title)
+
+    with st.expander("分析: 対象行一覧（ソート）", expanded=False):
+        st.caption(
+            "クリックで開閉します。**第1ソート** にステータス、**第2ソート** に仕入先を指定すると、"
+            "ステータス別にまとめたうえで仕入先順に並べ替えられます（第2は「なし」で1段だけにもできます）。"
+        )
+        if sub.empty:
+            st.caption("選んだステータスに該当する行がありません。")
+        else:
+            _tbl_opts = [
+                COL_DATETIME,
+                COL_NAME,
+                COL_SUPPLIER,
+                COL_MANAGEMENT_ID,
+                COL_STOCK_STATUS,
+                COL_QTY,
+                COL_PRICE_EXCL,
+                COL_GROSS_PROFIT,
+                COL_CATEGORY,
+            ]
+            _tbl_sort_choices = [c for c in _tbl_opts if c in sub.columns]
+            if not _tbl_sort_choices:
+                _tbl_sort_choices = list(sub.columns)[: min(8, len(sub.columns))]
+            _sec_opts = ["なし"] + _tbl_sort_choices
+            _def_p = (
+                COL_STOCK_STATUS
+                if COL_STOCK_STATUS in _tbl_sort_choices
+                else _tbl_sort_choices[0]
+            )
+            _def_s = (
+                COL_SUPPLIER
+                if COL_SUPPLIER in _tbl_sort_choices
+                else "なし"
+            )
+            _ix_p = (
+                _tbl_sort_choices.index(_def_p)
+                if _def_p in _tbl_sort_choices
+                else 0
+            )
+            _ix_s = _sec_opts.index(_def_s) if _def_s in _sec_opts else 0
+            _a1, _a2, _a3, _a4 = st.columns([2, 1, 2, 1])
+            with _a1:
+                _p_col = st.selectbox(
+                    "第1ソート",
+                    options=_tbl_sort_choices,
+                    index=_ix_p,
+                    key="analytics_tbl_sort_p",
+                )
+            with _a2:
+                _p_ord = st.radio(
+                    "第1の順序",
+                    ["昇順", "降順"],
+                    horizontal=True,
+                    key="analytics_tbl_sort_p_ord",
+                )
+            with _a3:
+                _s_col = st.selectbox(
+                    "第2ソート",
+                    options=_sec_opts,
+                    index=_ix_s,
+                    key="analytics_tbl_sort_s",
+                )
+            with _a4:
+                _s_ord = st.radio(
+                    "第2の順序",
+                    ["昇順", "降順"],
+                    horizontal=True,
+                    key="analytics_tbl_sort_s_ord",
+                    disabled=(_s_col == "なし"),
+                )
+            _cols_show = [c for c in _tbl_opts if c in sub.columns]
+            if _cols_show:
+                _view = sub[_cols_show].copy()
+                _specs: list[tuple[str, bool]] = [
+                    (_p_col, _p_ord == "昇順"),
+                ]
+                if _s_col != "なし" and _s_col in _view.columns:
+                    if _s_col != _p_col:
+                        _specs.append((_s_col, _s_ord == "昇順"))
+                _view = _analytics_table_multisort(_view, _specs)
+                st.dataframe(_view, use_container_width=True, hide_index=True)
+            else:
+                st.caption("表示できる列がありません。")
 
     st.divider()
     render_ledger_dashboard(calc)
@@ -3554,6 +4550,19 @@ def _render_inventory_ledger_data_editor_section(df_sorted: pd.DataFrame) -> Non
             disabled=True,
             help="1点1行の自動採番（シリアル）。通常は手入力しません。",
         )
+    if COL_QTY in df_sorted.columns:
+        _ledger_col_cfg[COL_QTY] = st.column_config.NumberColumn(
+            COL_QTY,
+            min_value=1,
+            step=1,
+            format="%d",
+            help="入出庫集計に使う点数（1以上の整数）。",
+        )
+    if COL_CATEGORY in df_sorted.columns:
+        _ledger_col_cfg[COL_CATEGORY] = st.column_config.TextColumn(
+            COL_CATEGORY,
+            help="構成比・分析用。空欄のときはキャッシュまたはキーワードで補完されます。下の **AI で一括推定** で埋められます。",
+        )
     if COL_STOCK_STATUS in df_sorted.columns:
         _ledger_col_cfg[COL_STOCK_STATUS] = st.column_config.SelectboxColumn(
             COL_STOCK_STATUS,
@@ -3564,11 +4573,6 @@ def _render_inventory_ledger_data_editor_section(df_sorted: pd.DataFrame) -> Non
         _ledger_col_cfg[COL_LAST_STOCKTAKE] = st.column_config.TextColumn(
             COL_LAST_STOCKTAKE,
             help=f"棚卸・実地確認した日（日本時間の暦日推奨）。例: {_today_jst_date().isoformat()}",
-        )
-    if COL_SALE_SOURCE_MGMT_ID in df_sorted.columns:
-        _ledger_col_cfg[COL_SALE_SOURCE_MGMT_ID] = st.column_config.TextColumn(
-            COL_SALE_SOURCE_MGMT_ID,
-            help="出庫（販売）などで売れた在庫行の入庫時管理ID（G########）。登録画面の販売管理からも入力できます。",
         )
     if COL_VOUCHER_RECORDED_AT in df_sorted.columns:
         _ledger_col_cfg[COL_VOUCHER_RECORDED_AT] = st.column_config.TextColumn(
@@ -3600,6 +4604,122 @@ def _render_inventory_ledger_data_editor_section(df_sorted: pd.DataFrame) -> Non
         _editor_kw["column_config"] = _ledger_col_cfg
     edited = st.data_editor(df_sorted, **_editor_kw)
 
+    with st.expander("在庫カテゴリーを AI で一括推定（表に反映・台帳へ保存）", expanded=False):
+        st.caption(
+            "この表の **現在の内容**（未保存の編集を含む）に対し、Gemini で商品名＋仕入先から **在庫カテゴリー** を推定してセルに入れます。"
+            "ローカルの **inventory_category_cache.json** も更新するため、集計・分析の構成比にも反映されます。"
+            "セルが1件以上更新されたときは、続けて **Google スプレッドシート**（または **inventory.csv**）へ **自動保存** します。"
+            "保存に失敗した場合のみ、反映済みの表を残したうえで「台帳を更新する」から再保存できます。"
+        )
+        _lc_only_in = st.checkbox("在庫中の行のみ", value=True, key="ledger_cat_bulk_only_in")
+        _lc_only_empty = st.checkbox(
+            "在庫カテゴリーが空の行のみ（推奨）",
+            value=True,
+            key="ledger_cat_bulk_only_empty",
+        )
+        _lc_overwrite = st.checkbox(
+            "既にカテゴリーが入っている行も上書き",
+            value=False,
+            key="ledger_cat_bulk_overwrite",
+        )
+        _lc_max = int(
+            st.number_input(
+                "1回の最大件数（ユニークの商品名＋仕入先）",
+                min_value=5,
+                max_value=120,
+                value=50,
+                step=5,
+                key="ledger_cat_bulk_max_n",
+            )
+        )
+        if st.button(
+            "AI で一括推定して表に反映",
+            type="secondary",
+            key="ledger_cat_bulk_run_btn",
+        ):
+            ed = edited.copy()
+            pool: list[tuple[str, str]] = []
+            seen_k: set[str] = set()
+            for idx in ed.index:
+                if _lc_only_in:
+                    if COL_STOCK_STATUS not in ed.columns:
+                        continue
+                    stt = _normalize_stock_status(
+                        str(ed.loc[idx, COL_STOCK_STATUS] or "")
+                    )
+                    if stt != STATUS_IN_STOCK:
+                        continue
+                if COL_CATEGORY in ed.columns:
+                    cur = str(ed.loc[idx, COL_CATEGORY] or "").strip()
+                else:
+                    cur = ""
+                if _lc_only_empty and cur:
+                    continue
+                if not _lc_overwrite and cur:
+                    continue
+                pn = str(ed.loc[idx, COL_NAME] or "").strip() if COL_NAME in ed.columns else ""
+                sp = (
+                    str(ed.loc[idx, COL_SUPPLIER] or "").strip()
+                    if COL_SUPPLIER in ed.columns
+                    else ""
+                )
+                if not pn:
+                    continue
+                ck = _inventory_category_cache_key(pn, sp)
+                if not ck or ck in seen_k:
+                    continue
+                seen_k.add(ck)
+                pool.append((pn, sp))
+            targets = pool[:_lc_max]
+            if not targets:
+                st.info("条件に合う行がありません。")
+            else:
+                try:
+                    with st.spinner(f"Gemini で {len(targets)} 件を推定しています…"):
+                        upd = infer_inventory_categories_with_gemini(targets)
+                    nmerge = _inventory_category_cache_merge(upd)
+                    new_ed, ncell = _apply_inventory_category_map_to_dataframe(
+                        ed,
+                        upd,
+                        only_in_stock=_lc_only_in,
+                        only_empty=_lc_only_empty,
+                        overwrite=_lc_overwrite,
+                    )
+                    _dest_lbl = (
+                        "inventory.csv"
+                        if _uses_local_inventory_csv()
+                        else "Google スプレッドシート"
+                    )
+                    if ncell > 0:
+                        try:
+                            with st.spinner(f"{_dest_lbl} に保存しています…"):
+                                overwrite_inventory_worksheet_from_dataframe(
+                                    new_ed.reset_index(drop=True),
+                                    previous_df=edited.reset_index(drop=True),
+                                )
+                        except Exception as save_e:
+                            st.session_state[LEDGER_DATA_EDITOR_KEY] = new_ed
+                            st.session_state["_ledger_saved_flash"] = (
+                                f"在庫カテゴリーを AI で **{ncell}** 行は表に反映しましたが、"
+                                f"{_dest_lbl} への保存に失敗しました: {save_e} "
+                                "下の「台帳を更新する」で再保存してください。"
+                            )
+                        else:
+                            st.session_state.pop(LEDGER_DATA_EDITOR_KEY, None)
+                            st.session_state["_ledger_saved_flash"] = (
+                                f"在庫カテゴリーを AI で **{ncell}** 行更新し、**{_dest_lbl}** に保存しました"
+                                f"（API {len(upd)} キー・キャッシュの新規/変更 {nmerge}）。"
+                            )
+                    else:
+                        st.session_state[LEDGER_DATA_EDITOR_KEY] = new_ed
+                        st.session_state["_ledger_saved_flash"] = (
+                            f"API は {len(upd)} 件のキーを返しましたが、選択した条件では表のセルは更新されませんでした"
+                            f"（キャッシュの新規/変更 {nmerge}）。"
+                        )
+                except Exception as e:
+                    st.error(str(e))
+                st.rerun()
+
     if st.button(
         "在庫中かつ棚卸日が未入力の行に、今日の日付（JST）を一括入力してすぐ保存",
         key="ledger_bulk_stocktake_today_save",
@@ -3618,6 +4738,14 @@ def _render_inventory_ledger_data_editor_section(df_sorted: pd.DataFrame) -> Non
             except Exception as e:
                 st.error(str(e))
             else:
+                filled_mids = set(
+                    edited.loc[m_b, COL_MANAGEMENT_ID]
+                    .astype(str)
+                    .str.strip()
+                    .tolist()
+                )
+                filled_mids.discard("")
+                _inv_stocktake_work_remaining_note_done(filled_mids)
                 st.session_state["_ledger_saved_flash"] = (
                     "棚卸日（今日・JST）を未確認の在庫中に一括入力し、台帳を保存しました。"
                 )
@@ -3636,6 +4764,12 @@ def _render_inventory_ledger_data_editor_section(df_sorted: pd.DataFrame) -> Non
             except Exception as e:
                 st.error(str(e))
                 return
+        _inv_stocktake_work_remaining_note_done(
+            _management_ids_last_stocktake_changed(
+                _ledger_base_for_save,
+                edited,
+            )
+        )
         st.session_state["_ledger_saved_flash"] = "台帳を更新しました。"
         st.session_state.pop(LEDGER_DATA_EDITOR_KEY, None)
         st.rerun()
@@ -3652,7 +4786,8 @@ def render_inventory_list_page() -> None:
         "http 以外の文字が混ざる行がある場合はテキスト列のままです）。"
         "棚卸し用の「最後に確認した日付（棚卸日）」は **YYYY-MM-DD** 推奨です（例: 今日なら "
         f"{_today_jst_date().isoformat()}）。"
-        "既定は **ギャラリー（カタログ）** タブです。**在庫一覧** タブの表は **全行** を表示します（未確認だけの一覧は展開パネルで参照できます）。"
+        "既定は **ギャラリー（カタログ）** タブです。**在庫一覧** タブの表は **全行** を表示します。"
+        "棚卸の参照一覧・作業セッションは展開パネル、ギャラリーの棚卸し絞り込みから使えます。"
     )
 
     if msg := st.session_state.pop("_ledger_saved_flash", None):
@@ -3695,51 +4830,150 @@ def render_inventory_list_page() -> None:
         st.warning("台帳を開けませんでした。サービスアカウントと共有設定を確認してください。")
         return
 
+    _inv_stocktake_work_remaining_prune(df_sheet)
+    st_active, st_rem, st_base, st_origin, st_snap = (
+        _inv_stocktake_work_remaining_read_state(df_sheet)
+    )
     n_in_stock = int(_mask_ledger_in_stock(df_sheet).sum())
-    n_unverified = int(_mask_ledger_stocktake_unverified(df_sheet).sum())
-    n_today_done = int(_mask_ledger_stocktake_today_jst(df_sheet).sum())
+    n_today_global = int(_mask_ledger_stocktake_today_jst(df_sheet).sum())
+    n_session_today_done = (
+        _count_stocktake_today_confirmed_since_session_start(
+            df_sheet, st_origin, st_snap
+        )
+        if st_active and st_origin
+        else 0
+    )
+    if st_active and COL_MANAGEMENT_ID in df_sheet.columns:
+        _m_sess_ct = (
+            df_sheet[COL_MANAGEMENT_ID]
+            .astype(str)
+            .str.strip()
+            .isin(st_rem)
+            & _mask_ledger_in_stock(df_sheet)
+        )
+        n_session_in_stock_pending = int(_m_sess_ct.sum())
+    else:
+        n_session_in_stock_pending = 0
     sk1, sk2, sk3, sk4 = st.columns(4)
     sk1.metric("在庫中（件数）", f"{n_in_stock:,}")
-    sk2.metric("棚卸・未確認（在庫中）", f"{n_unverified:,}")
-    sk3.metric("今日確認済（在庫中・JST）", f"{n_today_done:,}")
+    sk2.metric("今回の作業でまだ未確認（在庫中）", f"{n_session_in_stock_pending:,}")
+    sk3.metric(
+        "今回リストで本セッション中に今日確認済（在庫中・JST）",
+        f"{n_session_today_done:,}",
+        help=(
+            "「今回の棚卸を開始」を押した時点の棚卸日と比べ、今日（JST）に変わった件数だけです。"
+            "前のセッションで今日付けした分は、新しいセッション開始後はここに含まれません。"
+        ),
+    )
     with sk4:
-        if n_in_stock > 0:
-            st.caption("残り（未確認 / 在庫中）")
-            st.markdown(f"**{n_unverified} / {n_in_stock}**")
+        if st_active and st_base > 0:
+            n_rem_ids = len(st_rem)
+            pct_done = 100.0 * (st_base - n_rem_ids) / st_base
+            pct_done = max(0.0, min(100.0, pct_done))
+            st.metric("今回リスト（残り／対象）", f"{n_rem_ids:,} / {st_base:,}")
+            st.metric("今回リストの進捗", f"{pct_done:.1f}%")
         else:
-            st.caption("在庫中の行がないため比率は出ません。")
+            st.caption("今回の作業リストは未開始です。")
+            st.metric("今回リスト（残り／対象）", "—")
+            st.metric("今回リストの進捗", "—")
 
-    with st.expander("棚卸し: 在庫中かつ未確認の一覧（参照のみ）", expanded=False):
-        st.caption(
-            "「最後に確認した日付（棚卸日）」が空、または日付として解釈できない **在庫中** だけを表示します。"
-            "1人作業時の残件数の把握用です。日付の入力・保存は下の表で行ってください。"
+    st.markdown("##### 棚卸し作業セッション（任意）")
+    st.caption(
+        "同じ月・年に何度も棚卸しするとき、台帳に前回の棚卸日が入っていても **今回の対象リスト** で追えます。"
+        "対象リストは **`"
+        + STOCKTAKE_WORK_SESSION_FILENAME
+        + "`** に保存されるため、ブラウザやアプリを閉じてもリセットされません。"
+        "「今回の棚卸を開始」で在庫中の全管理IDを対象にし、棚卸しスキャンの確定・一括棚卸日・台帳保存で棚卸日を付けた行は自動でリストから外れます。"
+        "残りがゼロになった時点でもセッションは終了します（全数確認済み）。手動で閉じる場合は「今回の対象リストを終了」を押してください（台帳の日付は変わりません）。"
+    )
+    ss1, ss2 = st.columns(2)
+    with ss1:
+        if st.button(
+            "今回の棚卸を開始（在庫中をすべて今回の対象に）",
+            key="inv_stocktake_work_start",
+        ):
+            _inv_stocktake_work_remaining_start(df_sheet)
+            st.session_state.inv_gallery_page = 0
+            st.rerun()
+    with ss2:
+        if st.button(
+            "今回の対象リストを終了",
+            key="inv_stocktake_work_end",
+            disabled=not st_active,
+        ):
+            _inv_stocktake_work_remaining_clear()
+            st.session_state.inv_gallery_page = 0
+            st.rerun()
+
+    with st.expander("棚卸し: 参照用一覧（台帳未入力 / 今回の作業）", expanded=False):
+        list_kind = st.radio(
+            "表示する一覧",
+            ("台帳で棚卸日が未入力の在庫中", "今回の作業でまだ未確認の在庫中"),
+            horizontal=True,
+            key="inv_stocktake_list_kind_radio",
         )
-        unv = df_sheet.loc[_mask_ledger_stocktake_unverified(df_sheet)].copy()
-        if unv.empty:
-            st.success("在庫中で、かつ棚卸日が未入力の行はありません。")
+        _ucols = [
+            c
+            for c in (
+                COL_MANAGEMENT_ID,
+                COL_NAME,
+                COL_SUPPLIER,
+                COL_DATETIME,
+                COL_LAST_STOCKTAKE,
+            )
+            if c in df_sheet.columns
+        ]
+        if list_kind.startswith("台帳"):
+            st.caption(
+                "「最後に確認した日付（棚卸日）」が空、または日付として解釈できない **在庫中** のみです。"
+                "日付の入力・保存は下の表・スキャン・一括ボタンで行ってください。"
+            )
+            unv = df_sheet.loc[_mask_ledger_stocktake_unverified(df_sheet)].copy()
+            if unv.empty:
+                st.success("在庫中で、かつ棚卸日が未入力の行はありません。")
+            else:
+                st.metric("この一覧の件数", f"{len(unv):,}")
+                st.dataframe(unv[_ucols], use_container_width=True, hide_index=True)
         else:
-            st.metric("この一覧の件数（＝未確認の在庫中）", f"{len(unv):,}")
-            _ucols = [
-                c
-                for c in (
-                    COL_MANAGEMENT_ID,
-                    COL_NAME,
-                    COL_SUPPLIER,
-                    COL_DATETIME,
-                    COL_LAST_STOCKTAKE,
+            st.caption(
+                "上で **今回の棚卸を開始** を押したあとのみ有効です。台帳に棚卸日が入っていても、まだ今回のリストに残っている **在庫中** の行です。"
+            )
+            if not st_active:
+                st.info("作業セッションが未開始です。「今回の棚卸を開始」を押してください。")
+            elif not st_rem:
+                st.success(
+                    "今回の作業で追っていた在庫中の行は、すべてリストから外れました（または開始時点で在庫中がゼロでした）。"
                 )
-                if c in unv.columns
-            ]
-            st.dataframe(unv[_ucols], use_container_width=True, hide_index=True)
+            else:
+                m_sess = df_sheet[COL_MANAGEMENT_ID].astype(str).str.strip().isin(st_rem)
+                sess_df = df_sheet.loc[m_sess & _mask_ledger_in_stock(df_sheet)].copy()
+                if COL_MANAGEMENT_ID in sess_df.columns and not sess_df.empty:
+                    sess_df = sess_df.copy()
+                    sess_df["_sk"] = sess_df[COL_MANAGEMENT_ID].astype(str).str.strip().map(
+                        _management_id_sort_key
+                    )
+                    sess_df = sess_df.sort_values("_sk").drop(columns=["_sk"])
+                st.metric("この一覧の件数（今回の残り・在庫中）", f"{len(sess_df):,}")
+                st.dataframe(sess_df[_ucols], use_container_width=True, hide_index=True)
 
-    if n_today_done > 0 and COL_MANAGEMENT_ID in df_sheet.columns:
+    if st_active and st_origin and COL_MANAGEMENT_ID in df_sheet.columns:
+        if n_session_today_done > 0:
+            _ids_show = _management_ids_stocktake_today_confirmed_since_session_start(
+                df_sheet, st_origin, st_snap, limit=18
+            )
+            tail = " …" if n_session_today_done > len(_ids_show) else ""
+            st.caption(
+                f"今回セッション開始後に、棚卸日が今日（JST {_today_jst_date().isoformat()}）に更新された在庫中: **{n_session_today_done}** 件。"
+                f"管理IDの例: {', '.join(_ids_show)}{tail}"
+            )
+    elif n_today_global > 0 and COL_MANAGEMENT_ID in df_sheet.columns:
         _td_rows = df_sheet.loc[_mask_ledger_stocktake_today_jst(df_sheet)]
         _ids_show = (
             _td_rows[COL_MANAGEMENT_ID].astype(str).str.strip().head(18).tolist()
         )
         tail = " …" if len(_td_rows) > len(_ids_show) else ""
         st.caption(
-            f"今日（JST {_today_jst_date().isoformat()}）の棚卸日が入っている在庫中: **{n_today_done}** 件。"
+            f"今日（JST {_today_jst_date().isoformat()}）の棚卸日が入っている在庫中（台帳全体）: **{n_today_global}** 件。"
             f"管理IDの例: {', '.join(_ids_show)}{tail}"
         )
 
@@ -3817,15 +5051,45 @@ def render_inventory_list_page() -> None:
                 ("すべて", "在庫中", "販売済"),
                 key="inv_gallery_status_filter",
             )
+        gal_f1, gal_f2 = st.columns(2)
+        with gal_f1:
+            st.selectbox(
+                "浮貸で絞り込み（ギャラリー）",
+                ("指定なし", "浮貸あり", "浮貸なし"),
+                key="inv_gallery_loan_filter",
+                help="**浮貸あり** … 浮貸日時が入っている行のみ。**浮貸なし** … 浮貸日時が空の行のみ（販売済も含みます）。",
+            )
+        with gal_f2:
+            st.selectbox(
+                "棚卸しで絞り込み（ギャラリー）",
+                (
+                    "指定なし",
+                    "台帳で棚卸日が未入力の在庫中のみ",
+                    "今回の作業でまだ未確認（在庫中）",
+                ),
+                key="inv_gallery_stocktake_filter",
+            )
 
         _fw = str(st.session_state.get("inv_gallery_search_text", "") or "")
         _sup_f = list(st.session_state.get("inv_gallery_suppliers_filter") or [])
         _st_f = str(st.session_state.get("inv_gallery_status_filter", "すべて") or "すべて")
+        _stk_f = str(
+            st.session_state.get("inv_gallery_stocktake_filter", "指定なし") or "指定なし"
+        )
+        _loan_f = str(
+            st.session_state.get("inv_gallery_loan_filter", "指定なし") or "指定なし"
+        )
+        _rem_gal = _inv_stocktake_work_remaining_get()
+        if _stk_f == "今回の作業でまだ未確認（在庫中）" and _rem_gal is None:
+            st.info("「今回の棚卸を開始」を押すと、この絞り込みが使えます。")
         df_view = _filter_inventory_df_for_view(
             df_sorted_calc,
             q=_fw,
             suppliers=_sup_f,
             status_mode=_st_f,
+            stocktake_filter=_stk_f,
+            stocktake_session_remaining=_rem_gal,
+            loan_filter=_loan_f,
         )
         n_total = len(df_view)
         st.caption(
@@ -3835,7 +5099,7 @@ def render_inventory_list_page() -> None:
 
         if "inv_gallery_page" not in st.session_state:
             st.session_state.inv_gallery_page = 0
-        _fp_gal = f"{_fw!r}|{repr(_sup_f)}|{_st_f!r}"
+        _fp_gal = f"{_fw!r}|{repr(_sup_f)}|{_st_f!r}|{_stk_f!r}|{_loan_f!r}"
         if st.session_state.get("_inv_gallery_filter_fp") != _fp_gal:
             st.session_state._inv_gallery_filter_fp = _fp_gal
             st.session_state.inv_gallery_page = 0
@@ -3948,12 +5212,10 @@ def _init_registration_form_session_state() -> None:
         st.session_state.field_product_name = ""
     if "field_supplier" not in st.session_state:
         st.session_state.field_supplier = ""
-    if "field_qty" not in st.session_state:
-        st.session_state.field_qty = 1
-    if REGISTRATION_QTY_WIDGET_KEY not in st.session_state:
-        st.session_state[REGISTRATION_QTY_WIDGET_KEY] = int(
-            st.session_state.get("field_qty", 1)
-        )
+    if "field_row_quantity" not in st.session_state:
+        st.session_state.field_row_quantity = 1
+    if "field_inventory_category" not in st.session_state:
+        st.session_state.field_inventory_category = ""
     if "ai_kind" not in st.session_state:
         st.session_state.ai_kind = ""
     if "ai_features" not in st.session_state:
@@ -3981,6 +5243,10 @@ def _init_registration_form_session_state() -> None:
         st.session_state.ledger_pick_product_name = LEDGER_PICK_PLACEHOLDER
     if "ledger_pick_supplier" not in st.session_state:
         st.session_state.ledger_pick_supplier = LEDGER_PICK_PLACEHOLDER
+    if "hint_filter_inventory_category" not in st.session_state:
+        st.session_state.hint_filter_inventory_category = ""
+    if "ledger_pick_inventory_category" not in st.session_state:
+        st.session_state.ledger_pick_inventory_category = LEDGER_PICK_PLACEHOLDER
     if "field_sale_source_mgmt_id" not in st.session_state:
         st.session_state.field_sale_source_mgmt_id = ""
     if "sale_pick_source_id" not in st.session_state:
@@ -3993,8 +5259,6 @@ def _init_registration_form_session_state() -> None:
         st.session_state.s_field_actual_sale_excl = 0
     if "s_field_memo" not in st.session_state:
         st.session_state.s_field_memo = ""
-    if SALES_TAB_QTY_WIDGET_KEY not in st.session_state:
-        st.session_state[SALES_TAB_QTY_WIDGET_KEY] = 1
     if "sales_tab_memo" not in st.session_state:
         st.session_state.sales_tab_memo = ""
     if "sales_tab_loan_datetime_manual" not in st.session_state:
@@ -4002,119 +5266,401 @@ def _init_registration_form_session_state() -> None:
     st.session_state.pop("field_price_excl", None)
 
 
+def _management_id_sort_key(mid: str) -> tuple[int, str]:
+    """管理ID G######## を数値昇順でソート（非標準形式は末尾）。"""
+    s = str(mid or "").strip()
+    m = re.fullmatch(r"(?i)G(\d+)", s)
+    if m:
+        return (int(m.group(1)), "")
+    return (10**18, s.casefold())
+
+
+def _stocktake_candidates_from_gemini_response(
+    res: dict[str, Any],
+    df_ledger: pd.DataFrame,
+    *,
+    min_conf: float = 0.22,
+    max_n: int = STOCKTAKE_CAND_AI_MAX,
+    allowed_management_ids: set[str] | None = None,
+) -> list[dict[str, Any]]:
+    """Gemini の JSON から棚卸し候補を正規化（在庫中・台帳に存在する行のみ、重複除去）。
+
+    ``allowed_management_ids`` … 指定時はその集合に含まれる管理 ID のみ採用（今回の対象リスト）。
+    """
+    raw_list: list[dict[str, Any]] = []
+    if isinstance(res, dict):
+        sc = res.get("stocktake_candidates")
+        if isinstance(sc, list):
+            for item in sc:
+                if isinstance(item, dict):
+                    raw_list.append(item)
+        m0 = res.get("match")
+        if isinstance(m0, dict) and str(m0.get("management_id") or "").strip():
+            raw_list.append(m0)
+    out: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for it in raw_list:
+        mid = str(it.get("management_id") or "").strip()
+        if not mid or mid in seen:
+            continue
+        try:
+            conf = float(it.get("confidence") or 0)
+        except (TypeError, ValueError):
+            conf = 0.0
+        if conf < min_conf:
+            continue
+        if allowed_management_ids is not None and mid not in allowed_management_ids:
+            continue
+        tr = lookup_ledger_row_by_management_id(df_ledger, mid)
+        if tr is None:
+            continue
+        if (
+            _normalize_stock_status(str(tr.get(COL_STOCK_STATUS, "")))
+            != STATUS_IN_STOCK
+        ):
+            continue
+        seen.add(mid)
+        pn = str(it.get("product_name") or "").strip() or str(
+            tr.get(COL_NAME, "") or ""
+        ).strip()
+        su = str(it.get("supplier") or "").strip() or str(
+            tr.get(COL_SUPPLIER, "") or ""
+        ).strip()
+        out.append(
+            {
+                "management_id": mid,
+                "confidence": conf,
+                "product_name": pn,
+                "supplier": su,
+                "last_stocktake": str(tr.get(COL_LAST_STOCKTAKE, "") or "").strip(),
+                "image_url": str(tr.get(COL_IMAGE_URL, "") or "").strip(),
+            }
+        )
+    out.sort(key=lambda x: _management_id_sort_key(str(x.get("management_id") or "")))
+    return out[:max_n]
+
+
 def render_stocktake_scan_tab(df_ledger_hint: pd.DataFrame | None) -> None:
     """棚卸しスキャン: カメラ撮影 → AI 照合 → 棚卸日の確定更新のみ。"""
     st.markdown("##### 棚卸しスキャン（AI 照合）")
+    st_rem_scan = _inv_stocktake_work_remaining_get()
+    _scan_targets_ok = st_rem_scan is not None and len(st_rem_scan) > 0
+    if not _scan_targets_ok:
+        for _k in (
+            "_stocktake_scan_candidates",
+            "_stocktake_selected_mid",
+            "stocktake_multi_done_mids",
+            "stocktake_cand_page",
+        ):
+            st.session_state.pop(_k, None)
     st.caption(
-        "現物を撮影し、在庫中の台帳行と照合します。候補が表示されたら内容を確認し、"
-        "**棚卸を確定** でその行の「最後に確認した日付（棚卸日）」だけを **本日（JST）** に更新します（新規行は追加しません）。"
+        "現物を撮影し、**今回の棚卸対象リストにまだ残っている在庫中の行** だけを AI に渡し、複数候補を返します。"
+        f"候補は **{STOCKTAKE_CAND_PAGE_SIZE}** 件ずつ表示し、ページを切り替えて全件を確認できます（AI は最大 "
+        f"**{STOCKTAKE_CAND_AI_MAX}** 件まで）。"
+        "**1件ずつ** または **チェックした複数を一度に**、棚卸日を **本日（JST）** に更新できます（新規行は追加しません）。"
     )
+    if not _scan_targets_ok:
+        if st_rem_scan is None:
+            st.info(
+                "先に在庫一覧で **今回の棚卸を開始（在庫中をすべて今回の対象に）** を押してください。"
+                "スキャンは **今回のリストに残っている行だけ** を照合対象にします。"
+            )
+        else:
+            st.info(
+                "今回の対象リストに **残っている行がありません**（すべて棚卸済みか、台帳更新でリストから外れました）。"
+                "続ける場合は **今回の棚卸を開始** でリストを作り直してください。"
+            )
     cam = st.camera_input("現物を撮影", key="stocktake_camera_input")
-    if st.button("AIで台帳と照合", type="primary", key="stocktake_ai_match_btn"):
-        st.session_state.pop("_stocktake_scan_result", None)
+    if cam is not None:
+        st.session_state[SESSION_KEY_STOCKTAKE_LAST_IMAGE_BYTES] = cam.getvalue()
+    elif st.session_state.get(SESSION_KEY_STOCKTAKE_LAST_IMAGE_BYTES):
+        st.caption("直前に撮影した画像（**AIで台帳と照合** にそのまま使われます）")
+        st.image(
+            st.session_state[SESSION_KEY_STOCKTAKE_LAST_IMAGE_BYTES],
+            width=320,
+        )
+
+    if st.button(
+        "AIで台帳と照合",
+        type="primary",
+        key="stocktake_ai_match_btn",
+        disabled=not _scan_targets_ok,
+    ):
+        st.session_state.pop("_stocktake_scan_candidates", None)
+        st.session_state.pop("_stocktake_selected_mid", None)
+        st.session_state.pop("stocktake_multi_done_mids", None)
         st.session_state.pop("_stocktake_scan_warn", None)
-        if cam is None:
-            st.session_state["_stocktake_scan_warn"] = "先にカメラで撮影してください。"
+        st.session_state.pop("stocktake_cand_page", None)
+        img_b = (
+            cam.getvalue()
+            if cam is not None
+            else st.session_state.get(SESSION_KEY_STOCKTAKE_LAST_IMAGE_BYTES)
+        )
+        st_rem_run = _inv_stocktake_work_remaining_get()
+        if st_rem_run is None or not st_rem_run:
+            st.session_state["_stocktake_scan_warn"] = (
+                "今回の棚卸対象リストがありません。**今回の棚卸を開始** からやり直してください。"
+            )
+        elif not img_b:
+            st.session_state["_stocktake_scan_warn"] = (
+                "先にカメラで撮影するか、直前に保存した撮影データがありません。"
+            )
         elif df_ledger_hint is None or df_ledger_hint.empty:
             st.session_state["_stocktake_scan_warn"] = "台帳を読み込めないため照合できません。"
         else:
-            with st.spinner("画像を解析して台帳と照合しています…"):
-                try:
-                    inv_ctx = _build_gemini_inventory_context(df_ledger_hint)
-                    img_b = cam.getvalue()
+            inv_ctx_st = _build_gemini_inventory_context(
+                df_ledger_hint,
+                only_in_stock=True,
+                management_ids_filter=st_rem_run,
+            )
+            if not (inv_ctx_st or "").strip():
+                st.session_state["_stocktake_scan_warn"] = (
+                    "今回の対象リストに **在庫中として残っている行** がありません。"
+                    "在庫一覧で対象を開始し直すか、残リストを確認してください。"
+                )
+            else:
+                with st.spinner("画像を解析して台帳と照合しています…"):
+                    try:
+                        class _CamBytes:
+                            __slots__ = ("_b",)
 
-                    class _CamBytes:
-                        __slots__ = ("_b",)
+                            def __init__(self, b: bytes) -> None:
+                                self._b = b
 
-                        def __init__(self, b: bytes) -> None:
-                            self._b = b
+                            def getvalue(self) -> bytes:
+                                return self._b
 
-                        def getvalue(self) -> bytes:
-                            return self._b
-
-                    img_pil = _gemini_input_image_from_upload(_CamBytes(img_b))
-                    raw = analyze_image_with_gemini(
-                        img_pil,
-                        inventory_context=inv_ctx or None,
-                        prompt_mode="stocktake_match",
-                    )
-                    res = _parse_json_from_model(raw or "")
-                    m = res.get("match") if isinstance(res, dict) else None
-                    mid = ""
-                    if isinstance(m, dict):
-                        mid = str(m.get("management_id") or "").strip()
-                    conf = float(m.get("confidence") or 0) if isinstance(m, dict) else 0.0
-                    if not mid or conf < 0.36:
-                        st.session_state["_stocktake_scan_warn"] = (
-                            "在庫中の行と確実に一致する候補が得られませんでした。明るさ・距離を変えて再撮影するか、在庫一覧で管理IDを確認してください。"
+                        img_pil = _gemini_input_image_from_upload(_CamBytes(img_b))
+                        raw = analyze_image_with_gemini(
+                            img_pil,
+                            inventory_context=inv_ctx_st or None,
+                            prompt_mode="stocktake_match",
                         )
-                    else:
-                        tr = lookup_ledger_row_by_management_id(df_ledger_hint, mid)
-                        if tr is None:
+                        res = _parse_json_from_model(raw or "")
+                        if not isinstance(res, dict):
+                            res = {}
+                        cand_list = _stocktake_candidates_from_gemini_response(
+                            res,
+                            df_ledger_hint,
+                            allowed_management_ids=st_rem_run,
+                        )
+                        if not cand_list:
                             st.session_state["_stocktake_scan_warn"] = (
-                                f"管理ID **{mid}** が台帳に見つかりません。"
-                            )
-                        elif (
-                            _normalize_stock_status(str(tr.get(COL_STOCK_STATUS, "")))
-                            != STATUS_IN_STOCK
-                        ):
-                            st.session_state["_stocktake_scan_warn"] = (
-                                f"管理ID **{mid}** は在庫中ではありません。"
+                                "今回の対象リストの在庫中の行で、写真に合いそうな候補が得られませんでした。"
+                                "明るさ・距離を変えて再撮影するか、在庫一覧で管理IDを確認してください。"
                             )
                         else:
-                            st.session_state["_stocktake_scan_result"] = {
-                                "management_id": mid,
-                                "product_name": str(tr.get(COL_NAME, "") or "").strip(),
-                                "supplier": str(tr.get(COL_SUPPLIER, "") or "").strip(),
-                                "last_stocktake": str(
-                                    tr.get(COL_LAST_STOCKTAKE, "") or ""
-                                ).strip(),
-                                "image_url": str(tr.get(COL_IMAGE_URL, "") or "").strip(),
-                                "confidence": conf,
-                            }
-                except Exception as e:
-                    st.session_state["_stocktake_scan_warn"] = str(e)
-        st.rerun()
+                            st.session_state["_stocktake_scan_candidates"] = cand_list
+                            st.session_state["stocktake_cand_page"] = 0
+                            st.session_state.pop("_stocktake_selected_mid", None)
+                    except Exception as e:
+                        st.session_state["_stocktake_scan_warn"] = str(e)
 
     wn = st.session_state.pop("_stocktake_scan_warn", None)
     if wn:
         st.warning(wn)
-    hit = st.session_state.get("_stocktake_scan_result")
-    if isinstance(hit, dict) and hit.get("management_id"):
-        mid = str(hit["management_id"])
-        with st.container(border=True):
-            st.markdown(f"### 照合結果: **{mid}**")
-            c1, c2 = st.columns([1, 2])
-            with c1:
-                iu = str(hit.get("image_url") or "").strip()
-                if iu.startswith("http://") or iu.startswith("https://"):
-                    st.image(iu, use_container_width=True)
-                else:
-                    st.caption("（台帳に画像URLがありません）")
-            with c2:
-                st.write(f"**商品名:** {hit.get('product_name') or '—'}")
-                st.write(f"**仕入先:** {hit.get('supplier') or '—'}")
-                st.write(
-                    f"**前回の棚卸日:** {hit.get('last_stocktake') or '—（未入力）'}"
-                )
+    cands = st.session_state.get("_stocktake_scan_candidates")
+    if isinstance(cands, list) and cands:
+        st.markdown("### 照合候補（今回の対象リスト・在庫中）")
+        st.caption(
+            f"**{len(cands)}** 件（**管理IDの昇順**）。"
+            f"**{STOCKTAKE_CAND_PAGE_SIZE}** 件ずつ表示し、下のボタンで全候補をページ送りできます。"
+        )
+        _st_mode = st.radio(
+            "棚卸の確定の仕方",
+            (
+                "1件ずつ選んで確定（従来）",
+                "複数を選んで一括確定（同じ商品の複数行向け）",
+            ),
+            horizontal=True,
+            key="stocktake_scan_confirm_mode",
+        )
+        _st_batch = _st_mode.startswith("複数")
+
+        if "stocktake_cand_page" not in st.session_state:
+            st.session_state.stocktake_cand_page = 0
+        n_total = len(cands)
+        n_pages = max(1, (n_total + STOCKTAKE_CAND_PAGE_SIZE - 1) // STOCKTAKE_CAND_PAGE_SIZE)
+        page_idx = int(st.session_state.stocktake_cand_page)
+        if page_idx >= n_pages:
+            page_idx = n_pages - 1
+            st.session_state.stocktake_cand_page = page_idx
+        if page_idx < 0:
+            page_idx = 0
+            st.session_state.stocktake_cand_page = 0
+        start_i = page_idx * STOCKTAKE_CAND_PAGE_SIZE
+        end_i = min(n_total, start_i + STOCKTAKE_CAND_PAGE_SIZE)
+        page_slice = cands[start_i:end_i]
+        _mid_opts = [str(h.get("management_id") or "").strip() for h in cands]
+        _mid_opts = [m for m in _mid_opts if m]
+        _mid_label: dict[str, str] = {}
+        for h in cands:
+            _m = str(h.get("management_id") or "").strip()
+            if not _m:
+                continue
+            _pn = str(h.get("product_name") or "—").strip()
+            if len(_pn) > 36:
+                _pn = _pn[:33] + "…"
+            _mid_label[_m] = f"{_m} ／ {_pn}"
+
+        if _st_batch:
+            st.caption(
+                "下の一覧で **任意の管理IDを複数選択** するか、**すべて選択**／**このページだけ選択**／**クリア** を使ってから一括確定してください。"
+            )
+            ba1, ba2, ba3, ba4 = st.columns(4)
+            with ba1:
+                if st.button("すべての候補を選択", key="stocktake_sel_all_cands"):
+                    st.session_state["stocktake_multi_done_mids"] = list(_mid_opts)
+                    st.rerun()
+            with ba2:
+                _page_mids = [
+                    str(h.get("management_id") or "").strip()
+                    for h in page_slice
+                    if str(h.get("management_id") or "").strip()
+                ]
+                if st.button(
+                    "このページの候補をすべて選択",
+                    key="stocktake_sel_page_cands",
+                    disabled=not _page_mids,
+                ):
+                    _cur = set(st.session_state.get("stocktake_multi_done_mids") or [])
+                    _cur.update(_page_mids)
+                    st.session_state["stocktake_multi_done_mids"] = sorted(_cur)
+                    st.rerun()
+            with ba3:
+                if st.button("選択をクリア", key="stocktake_clr_multi_sel"):
+                    st.session_state["stocktake_multi_done_mids"] = []
+                    st.rerun()
+            with ba4:
+                st.caption(f"候補 **{n_total}** 件中、選択中 **{len(st.session_state.get('stocktake_multi_done_mids') or [])}** 件")
+            st.multiselect(
+                "一括で棚卸確定する管理ID（任意に追加・解除）",
+                options=_mid_opts,
+                format_func=lambda m: _mid_label.get(m, m),
+                key="stocktake_multi_done_mids",
+            )
+        else:
+            sel_cur = str(st.session_state.get("_stocktake_selected_mid") or "").strip()
+            if sel_cur:
+                st.info(f"選択中の管理ID: **{sel_cur}**")
+
+        if n_pages > 1:
+            p1, p2, p3 = st.columns([1, 3, 1])
+            with p1:
+                if st.button(
+                    "◀ 前の候補",
+                    disabled=page_idx <= 0,
+                    key="stocktake_cand_prev",
+                ):
+                    st.session_state.stocktake_cand_page = max(0, page_idx - 1)
+                    st.rerun()
+            with p2:
                 st.caption(
-                    f"AI 確信度: {float(hit.get('confidence') or 0):.2f}（参考）"
+                    f"**ページ {page_idx + 1} / {n_pages}**（{n_total} 件中 **{start_i + 1}〜{end_i}** 件）"
                 )
+            with p3:
+                if st.button(
+                    "次の候補 ▶",
+                    disabled=page_idx >= n_pages - 1,
+                    key="stocktake_cand_next",
+                ):
+                    st.session_state.stocktake_cand_page = min(
+                        n_pages - 1, page_idx + 1
+                    )
+                    st.rerun()
+
+        for j, hit in enumerate(page_slice):
+            mid = str(hit.get("management_id") or "").strip()
+            if not mid:
+                continue
+            gidx = start_i + j
+            with st.container(border=True):
+                h1, h2 = st.columns([1, 2])
+                with h1:
+                    _render_inventory_gallery_thumbnail(
+                        str(hit.get("image_url") or ""),
+                        width=200,
+                        sold=False,
+                    )
+                with h2:
+                    st.markdown(f"**管理ID:** `{mid}`")
+                    st.write(f"**商品名:** {hit.get('product_name') or '—'}")
+                    st.write(f"**仕入先:** {hit.get('supplier') or '—'}")
+                    st.write(
+                        f"**前回の棚卸日:** {hit.get('last_stocktake') or '—（未入力）'}"
+                    )
+                    st.caption(
+                        f"AI 確信度: {float(hit.get('confidence') or 0):.2f}（参考）"
+                    )
+                    if not _st_batch and st.button(
+                        "この候補を選ぶ",
+                        key=f"stocktake_pick_{gidx}_{mid}",
+                        type="secondary",
+                    ):
+                        st.session_state["_stocktake_selected_mid"] = mid
+                        st.rerun()
+
+        if _st_batch:
+            _picked = list(st.session_state.get("stocktake_multi_done_mids") or [])
+            _picked = [str(x).strip() for x in _picked if str(x).strip()]
             if st.button(
-                "棚卸を確定（棚卸日を本日・JST に更新）",
+                "選択した候補をまとめて棚卸確定（棚卸日を本日・JST）",
                 type="primary",
-                key=f"stocktake_confirm_{mid}",
+                key="stocktake_confirm_multi",
+                disabled=len(_picked) < 1,
             ):
                 try:
                     with st.spinner("台帳を更新しています…"):
-                        apply_last_stocktake_jst_for_management_id(mid)
+                        n_ok, skips = apply_last_stocktake_jst_for_management_ids(_picked)
                 except Exception as e:
                     st.error(str(e))
                 else:
-                    st.session_state.pop("_stocktake_scan_result", None)
-                    st.success(f"管理ID **{mid}** の棚卸日を更新しました。")
+                    st.session_state.pop("_stocktake_scan_candidates", None)
+                    st.session_state.pop("_stocktake_selected_mid", None)
+                    st.session_state.pop("stocktake_multi_done_mids", None)
+                    st.session_state.pop("stocktake_cand_page", None)
+                    st.session_state.pop(SESSION_KEY_STOCKTAKE_LAST_IMAGE_BYTES, None)
+                    st.success(
+                        f"**{n_ok}** 件の棚卸日を本日（JST）に更新しました。"
+                    )
+                    if skips:
+                        st.caption(
+                            "スキップ: " + "；".join(skips[:8])
+                            + (" …" if len(skips) > 8 else "")
+                        )
                     st.session_state.pop(LEDGER_DATA_EDITOR_KEY, None)
                     st.rerun()
+        elif st.button(
+            "棚卸を確定（棚卸日を本日・JST に更新）",
+            type="primary",
+            key="stocktake_confirm_selected",
+            disabled=not str(st.session_state.get("_stocktake_selected_mid") or "").strip(),
+        ):
+            mid = str(st.session_state.get("_stocktake_selected_mid") or "").strip()
+            try:
+                with st.spinner("台帳を更新しています…"):
+                    apply_last_stocktake_jst_for_management_id(mid)
+            except Exception as e:
+                st.error(str(e))
+            else:
+                st.session_state.pop("_stocktake_scan_candidates", None)
+                st.session_state.pop("_stocktake_selected_mid", None)
+                st.session_state.pop("stocktake_multi_done_mids", None)
+                st.session_state.pop("stocktake_cand_page", None)
+                st.session_state.pop(SESSION_KEY_STOCKTAKE_LAST_IMAGE_BYTES, None)
+                st.success(f"管理ID **{mid}** の棚卸日を更新しました。")
+                st.session_state.pop(LEDGER_DATA_EDITOR_KEY, None)
+                st.rerun()
+
+
+def _mask_ledger_loan_datetime_nonblank(df: pd.DataFrame) -> pd.Series:
+    """浮貸日時が実質入力されている行（在庫一覧・ギャラリー用）。"""
+    if df.empty or COL_LOAN_DATETIME not in df.columns:
+        return pd.Series(False, index=df.index, dtype=bool)
+    s = df[COL_LOAN_DATETIME].astype(str).str.strip()
+    low = s.str.lower()
+    blank = s.eq("") | low.isin(("nan", "none", "<na>", "nat"))
+    return ~(blank.fillna(True))
 
 
 def _filter_inventory_df_for_view(
@@ -4123,6 +5669,9 @@ def _filter_inventory_df_for_view(
     q: str,
     suppliers: list[str],
     status_mode: str,
+    stocktake_filter: str = "指定なし",
+    stocktake_session_remaining: set[str] | None = None,
+    loan_filter: str = "指定なし",
 ) -> pd.DataFrame:
     """在庫一覧の検索・フィルタ（ギャラリー／表の共通ビュー用）。"""
     out = df.copy()
@@ -4134,6 +5683,24 @@ def _filter_inventory_df_for_view(
                 out[COL_STOCK_STATUS].astype(str).str.strip().map(_normalize_stock_status)
                 == STATUS_SOLD
             ]
+    if stocktake_filter == "台帳で棚卸日が未入力の在庫中のみ":
+        out = out.loc[_mask_ledger_stocktake_unverified(out)]
+    elif (
+        stocktake_filter == "今回の作業でまだ未確認（在庫中）"
+        and stocktake_session_remaining is not None
+        and COL_MANAGEMENT_ID in out.columns
+    ):
+        rem = stocktake_session_remaining
+        m_rem = out[COL_MANAGEMENT_ID].astype(str).str.strip().isin(rem)
+        out = out.loc[m_rem & _mask_ledger_in_stock(out)]
+    if loan_filter == "浮貸あり":
+        if COL_LOAN_DATETIME in out.columns:
+            out = out.loc[_mask_ledger_loan_datetime_nonblank(out)]
+        else:
+            out = out.iloc[0:0].copy()
+    elif loan_filter == "浮貸なし":
+        if COL_LOAN_DATETIME in out.columns:
+            out = out.loc[~_mask_ledger_loan_datetime_nonblank(out)]
     if suppliers and COL_SUPPLIER in out.columns:
         sup_m = out[COL_SUPPLIER].astype(str).str.strip().isin(set(suppliers))
         out = out.loc[sup_m]
@@ -4207,7 +5774,6 @@ def _render_sales_management_tab(
     with c2:
         if st.button("入力をクリア", key="sales_tab_clear_fields_btn"):
             st.session_state.field_sale_source_mgmt_id = ""
-            st.session_state[SALES_TAB_QTY_WIDGET_KEY] = 1
             st.session_state.field_actual_sale_excl = 0
             st.session_state.sales_tab_memo = ""
             st.session_state.sales_tab_loan_datetime_manual = ""
@@ -4217,30 +5783,39 @@ def _render_sales_management_tab(
             st.rerun()
 
     if do_match and uploaded is not None:
-        with st.spinner("画像を解析して販売元を照合しています…"):
-            try:
-                img = _gemini_input_image_from_upload(uploaded)
-                inv_ctx = ""
-                if df_ledger_hint is not None and not df_ledger_hint.empty:
-                    inv_ctx = _build_gemini_inventory_context(df_ledger_hint)
-                raw_text = analyze_image_with_gemini(
-                    img,
-                    inventory_context=inv_ctx or None,
-                    prompt_mode="sale_link",
-                )
-                result = _parse_json_from_model(raw_text or "")
-                _apply_gemini_sale_link_to_session(
-                    result,
-                    df_ledger_hint,
-                    fill_product_preview_fields=False,
-                )
-                st.success("照合が完了しました。管理IDを確認してください。")
-            except Exception as e:
-                st.warning(
-                    "現在混み合っているか、無料枠の上限に達している可能性があります。"
-                    "1分ほど待ってから再試行してください。"
-                )
-                st.caption(f"詳細: {e}")
+        inv_ctx_sale = ""
+        if df_ledger_hint is not None and not df_ledger_hint.empty:
+            inv_ctx_sale = _build_gemini_inventory_context(
+                df_ledger_hint, only_in_stock=True
+            )
+        if not (inv_ctx_sale or "").strip():
+            st.warning(
+                "販売元の写真照合には、台帳に **在庫中** の行が少なくとも1行必要です。"
+                "在庫がすべて販売済の場合や、**管理ID** が空の行しかない場合はリストを作れません。"
+                "ページ先頭の台帳読み込みエラーが出ていないかも確認してください。"
+            )
+        else:
+            with st.spinner("画像を解析して販売元を照合しています…"):
+                try:
+                    img = _gemini_input_image_from_upload(uploaded)
+                    raw_text = analyze_image_with_gemini(
+                        img,
+                        inventory_context=inv_ctx_sale or None,
+                        prompt_mode="sale_link",
+                    )
+                    result = _parse_json_from_model(raw_text or "")
+                    _apply_gemini_sale_link_to_session(
+                        result,
+                        df_ledger_hint,
+                        fill_product_preview_fields=False,
+                    )
+                    st.success("照合が完了しました。管理IDを確認してください。")
+                except Exception as e:
+                    st.warning(
+                        "現在混み合っているか、無料枠の上限に達している可能性があります。"
+                        "1分ほど待ってから再試行してください。"
+                    )
+                    st.caption(f"詳細: {e}")
 
     _swarn = st.session_state.pop("_sale_link_warn", None)
     if _swarn:
@@ -4263,15 +5838,9 @@ def _render_sales_management_tab(
             )
 
     st.text_input(
-        "販売元管理ID（手入力・複数はカンマ等で区切り）",
+        "販売する管理ID（手入力・複数はカンマ等で区切り）",
         key="field_sale_source_mgmt_id",
         placeholder="例: G00000001 または G00000001, G00000002",
-    )
-    sales_qty = st.number_input(
-        "数量（対象点数・管理IDの件数と一致）",
-        min_value=1,
-        step=1,
-        key=SALES_TAB_QTY_WIDGET_KEY,
     )
     if _loan_keep_stock:
         st.text_input(
@@ -4296,18 +5865,14 @@ def _render_sales_management_tab(
         height=80,
     )
 
-    _q = int(st.session_state.get(SALES_TAB_QTY_WIDGET_KEY, 1))
     _ids_pv = _split_management_ids_from_field(
         str(st.session_state.get("field_sale_source_mgmt_id", "") or "")
     )
+    _q = len(_ids_pv)
     _act_u = int(st.session_state.get("field_actual_sale_excl", 0))
     _pv_ok_rows: list[pd.Series] = []
-    if _ids_pv and len(_ids_pv) != _q:
-        st.warning(
-            f"販売元管理IDが **{len(_ids_pv)}** 件ですが、数量は **{_q}** です。同じ件数にしてください。"
-        )
     if _ids_pv and len(set(_ids_pv)) != len(_ids_pv):
-        st.warning("販売元管理IDに **重複** があります。")
+        st.warning("管理IDに **重複** があります。")
     if _ids_pv and df_ledger_hint is not None:
         _pv_msgs: list[str] = []
         for _mid_one in _ids_pv:
@@ -4335,7 +5900,6 @@ def _render_sales_management_tab(
 
     _sale_pv_agg = (
         bool(_ids_pv)
-        and len(_ids_pv) == _q
         and len(set(_ids_pv)) == len(_ids_pv)
         and len(_pv_ok_rows) == len(_ids_pv)
         and len(_pv_ok_rows) > 0
@@ -4378,7 +5942,7 @@ def _render_sales_management_tab(
         _pl_u_gp = _finite_int(_tr0.get(COL_PLANNED_SALE), 0)
         _plex = sum(_finite_int(x.get(COL_PLANNED_SALE), 0) for x in _pv_ok_rows)
         _pin = price_incl_tax(_plex, _tax_preview) if _plex > 0 else 0
-        _aex = _act_u * _q if _act_u > 0 else 0
+        _aex = _act_u * max(1, _q) if _act_u > 0 else 0
         _ain = price_incl_tax(_aex, _tax_preview) if _aex > 0 else 0
         _gp_acc = 0
         _gp_any = False
@@ -4428,7 +5992,7 @@ def _render_sales_management_tab(
     pm1, pm2, pm3, pm4, pm5 = st.columns(5)
     with pm1:
         _cogs_lbl = (
-            "原価（税抜・合計）" if _sale_pv_agg and _q > 1 else "原価（税抜・参考）"
+            "原価（税抜・合計）" if _sale_pv_agg and len(_ids_pv) > 1 else "原価（税抜・参考）"
         )
         if _pv_ok_rows:
             st.metric(_cogs_lbl, f"¥{_cogs_preview:,}")
@@ -4477,25 +6041,18 @@ def _render_sales_management_tab(
             st.session_state.get("field_sale_source_mgmt_id", "") or ""
         ).strip()
         _act_ex2 = int(st.session_state.get("field_actual_sale_excl", 0))
-        _q_sv = int(st.session_state.get(SALES_TAB_QTY_WIDGET_KEY, 1))
         _ids_sale_val = _split_management_ids_from_field(_sale_src_save)
         memo_s = (memo_sales or "").strip()
         validation_ok = True
         _need_actual = _plain_sale or _loan_as_sale
         if not _sale_src_save:
-            st.error("**管理ID**（販売元管理ID欄）の入力が必須です。")
+            st.error("**販売する管理ID** の入力が必須です。")
             validation_ok = False
         elif _need_actual and _act_ex2 < 1:
             st.error("**実売金額（税抜）** を1円以上で入力してください。")
             validation_ok = False
         elif df_ledger_hint is None:
             st.error("台帳を読み込めないため、反映できません。")
-            validation_ok = False
-        elif len(_ids_sale_val) != _q_sv:
-            st.error(
-                "**管理ID** を **数量と同じ件数** で入力してください。"
-                f"（数量 **{_q_sv}** に対し **{len(_ids_sale_val)}** 件と読み取りました。）"
-            )
             validation_ok = False
         elif len(set(_ids_sale_val)) != len(_ids_sale_val):
             st.error("管理IDに **重複** があります。")
@@ -4630,6 +6187,13 @@ def main():
     _init_registration_form_session_state()
     _init_voucher_sidebar_state()
     df_ledger_hint = _ledger_hint_dataframe()
+    _ledger_err = st.session_state.pop("_ledger_hint_load_error", None)
+    _sheet_err = st.session_state.pop("_inventory_sheet_load_error", None)
+    if _ledger_err or _sheet_err:
+        st.warning(
+            "台帳の参照用データの読み込みに失敗しました（**仕入のAI解析・販売の写真照合・候補一覧**に影響します）。"
+            f"\n\n{_ledger_err or _sheet_err}"
+        )
 
     st.markdown("## 台帳登録")
     st.caption(
@@ -4644,7 +6208,7 @@ def main():
         key="shared_reg_photo_uploader",
     )
     st.caption(
-        "写真は **1枚まで** です。数量が **2以上** のときは、その1枚をドライブに保存し、"
+        "写真は **1枚まで** です。**複数行を同時に登録する** ときは、その1枚をドライブに保存し、"
         "作成する **全行に同じ画像URL** を入れます。"
         "台帳の日時は写真の EXIF 撮影日時を優先し、写真がないときは日本時間（JST）の現在時刻です。"
     )
@@ -4665,7 +6229,7 @@ def main():
         st.markdown("##### クイック検索（写真から検索）")
         st.caption(
             "**AIで画像を解析** で商品名・柄色などを推定しつつ在庫中と照合します。"
-            "解析後は下の「在庫中の近い候補」も併せて確認してください。"
+            "解析後は下の「近い候補」も併せて確認してください。"
         )
 
         movement = st.radio(
@@ -4686,8 +6250,8 @@ def main():
             if st.button("候補の自動入力をクリア"):
                 st.session_state.field_product_name = ""
                 st.session_state.field_supplier = ""
-                st.session_state.field_qty = 1
-                st.session_state[REGISTRATION_QTY_WIDGET_KEY] = 1
+                st.session_state.field_row_quantity = 1
+                st.session_state.field_inventory_category = ""
                 st.session_state.ai_kind = ""
                 st.session_state.ai_features = ""
                 st.session_state.ai_parse_ran = False
@@ -4698,8 +6262,10 @@ def main():
                 st.session_state.field_stock_status = STATUS_IN_STOCK
                 st.session_state.hint_filter_product_name = ""
                 st.session_state.hint_filter_supplier = ""
+                st.session_state.hint_filter_inventory_category = ""
                 st.session_state.ledger_pick_product_name = LEDGER_PICK_PLACEHOLDER
                 st.session_state.ledger_pick_supplier = LEDGER_PICK_PLACEHOLDER
+                st.session_state.ledger_pick_inventory_category = LEDGER_PICK_PLACEHOLDER
                 st.session_state.field_sale_source_mgmt_id = ""
                 st.session_state.sale_pick_source_id = LEDGER_PICK_PLACEHOLDER
                 st.session_state.pop("ledger_quick_candidates", None)
@@ -4714,16 +6280,21 @@ def main():
                     img = _gemini_input_image_from_upload(uploaded)
                     inv_ctx = ""
                     if df_ledger_hint is not None and not df_ledger_hint.empty:
-                        inv_ctx = _build_gemini_inventory_context(df_ledger_hint)
+                        inv_ctx = _build_gemini_inventory_context(
+                            df_ledger_hint, only_in_stock=False
+                        )
                     raw_text = analyze_image_with_gemini(
                         img,
                         inventory_context=inv_ctx or None,
                     )
                     result = _parse_json_from_model(raw_text or "")
+                    result = _apply_purchase_ledger_match_supplement(
+                        result, df_ledger_hint
+                    )
                     _apply_gemini_json_to_session(result, df_ledger_hint)
                     _refresh_ledger_quick_search_candidates(df_ledger_hint)
                     st.success(
-                        "解析が完了しました。必要に応じて商品名・仕入先・取引先・数量・仕入金額（税抜）を修正してください。"
+                        "解析が完了しました。必要に応じて商品名・仕入先・在庫カテゴリー・仕入金額（税抜）を修正してください。"
                     )
                 except Exception as e:
                     st.warning(
@@ -4735,22 +6306,31 @@ def main():
         if st.session_state.get("ai_parse_ran"):
             st.subheader("AI解析結果（参考）")
             st.write(f"**推定種類:** {st.session_state.ai_kind or '—'}")
-            st.write(f"**推定数量:** {int(st.session_state.field_qty)}")
+            st.write(
+                f"**推定数量（同時追記行数）:** {int(st.session_state.field_row_quantity)}"
+            )
             st.write(
                 f"**推定仕入金額（税抜・1点）:** ¥{int(st.session_state.field_line_excl_yen):,}"
+            )
+            st.write(
+                f"**推定在庫カテゴリー:** {str(st.session_state.get('field_inventory_category', '') or '').strip() or '—'}"
             )
             st.caption(f"マッチング用特徴: {st.session_state.ai_features or '—'}")
             mid_hit = st.session_state.get("_gemini_match_management_id")
             if mid_hit:
-                st.info(f"台帳照合: 管理ID **{mid_hit}** の在庫行に合わせて、商品名・仕入先・仕入金額（税抜）を反映しました。")
+                st.info(
+                    f"台帳照合: 管理ID **{mid_hit}** の在庫行に合わせて、商品名・仕入先・仕入金額（税抜）"
+                    f"・{COL_CATEGORY}を反映しました。"
+                )
     
         if df_ledger_hint is not None and not df_ledger_hint.empty:
             st.markdown("##### 台帳から入力補助（任意）")
             st.caption(
-                "絞り込み欄に文字を入れると候補が絞られます。プルダウンで選ぶと下の入力欄に反映されます（あとから手修正も可能です）。"
+                "絞り込み欄に文字を入れると候補が絞られます。プルダウンで選ぶと下の **必須入力欄** に反映されます（あとから手修正も可能です）。"
                 "在庫中の行に一致したときは **販売予定金額（税抜・任意）** にも、台帳の1点あたりの値を入れます（仕入先まで一致する行を優先）。"
+                f"**{COL_CATEGORY}** も同様に、台帳の既存値から選べます。"
             )
-            hc1, hc2 = st.columns(2)
+            hc1, hc2, hc3 = st.columns(3)
             with hc1:
                 st.text_input(
                     "商品名の絞り込み（部分一致）",
@@ -4791,6 +6371,31 @@ def main():
                     key="ledger_pick_supplier",
                     on_change=_on_ledger_pick_supplier,
                 )
+            with hc3:
+                if COL_CATEGORY in df_ledger_hint.columns:
+                    st.text_input(
+                        "在庫カテゴリーの絞り込み（部分一致）",
+                        key="hint_filter_inventory_category",
+                        placeholder="例: 帯",
+                    )
+                    fc = st.session_state.get("hint_filter_inventory_category", "")
+                    if st.session_state.get("_hint_cat_seen", "") != fc:
+                        st.session_state["_hint_cat_seen"] = fc
+                        st.session_state.ledger_pick_inventory_category = (
+                            LEDGER_PICK_PLACEHOLDER
+                        )
+                    opts_c = _ledger_unique_col_values(df_ledger_hint, COL_CATEGORY)
+                    if fc.strip():
+                        q = fc.strip().casefold()
+                        opts_c = [x for x in opts_c if q in x.casefold()][:400]
+                    st.selectbox(
+                        "台帳の在庫カテゴリーから選ぶ",
+                        options=[LEDGER_PICK_PLACEHOLDER] + opts_c,
+                        key="ledger_pick_inventory_category",
+                        on_change=_on_ledger_pick_inventory_category,
+                    )
+                else:
+                    st.caption("台帳に在庫カテゴリー列がありません。")
         elif _uses_local_inventory_csv() or _secret_str(SECRET_GOOGLE_SPREADSHEET_ID):
             st.caption("台帳が空か読み込めないため、入力補助の候補は表示できません。")
     
@@ -4801,6 +6406,11 @@ def main():
         )
         product_name = st.text_input("商品名（必須）", key="field_product_name")
         supplier = st.text_input("仕入先・取引先（必須）", key="field_supplier")
+        st.text_input(
+            "在庫カテゴリー（必須）",
+            key="field_inventory_category",
+            placeholder="例: 帯 / 雑貨 / 飲料（上の台帳補助・AI解析で入力可）",
+        )
         _refresh_ledger_quick_search_candidates(df_ledger_hint)
         _cand = st.session_state.get("ledger_quick_candidates")
         if (
@@ -4808,9 +6418,9 @@ def main():
             and not _cand.empty
             and df_ledger_hint is not None
         ):
-            with st.expander("在庫中の近い候補（写真解析・入力文字から照合）", expanded=False):
+            with st.expander("近い候補（写真解析・入力文字から照合）", expanded=False):
                 st.caption(
-                    "商品名・仕入先の表記が近い **在庫中** の行を最大8件表示しています。"
+                    "商品名・仕入先の表記が近い台帳行を最大8件表示しています（**在庫中・販売済** などステータスは問いません）。"
                     "上の「台帳から入力補助」で同じ文言を選ぶか、管理IDを手元で確認して台帳一覧と突き合わせてください。"
                 )
                 _show_cols = [
@@ -4819,10 +6429,11 @@ def main():
                         COL_MANAGEMENT_ID,
                         COL_NAME,
                         COL_SUPPLIER,
+                        COL_STOCK_STATUS,
                         COL_PRICE_EXCL,
                         COL_PLANNED_SALE,
                         COL_LAST_STOCKTAKE,
-                        COL_SALE_SOURCE_MGMT_ID,
+                        COL_CATEGORY,
                     )
                     if c in _cand.columns
                 ]
@@ -4832,24 +6443,29 @@ def main():
                     hide_index=True,
                 )
     
-        quantity = st.number_input(
-            "数量（点数）",
+        st.number_input(
+            f"数量（{COL_QTY}・同時追記行数）",
             min_value=1,
+            max_value=2000,
             step=1,
-            key=REGISTRATION_QTY_WIDGET_KEY,
+            key="field_row_quantity",
             help=(
-                "台帳は **1点1行** で保存します。行数は常にこの数量と同じです。"
-                "写真は1枚まで・複数点のときは **同じ画像URL** を各行に入れます。"
+                f"在庫として計上する点数です。**N にすると同一内容のレコードを N 行** 追記します（1点＝1行）。"
+                f"各行の「{COL_QTY}」列には **1** を入れます。仕入金額（税抜）は各行とも **1点あたり** の金額です。"
+                "写真をアップロードした場合、複数行でも **同じ画像URL** を各行に記録します。"
+                "「AIで画像を解析」の推定数量がここに入ります（いつでも上書きできます）。"
             ),
         )
-        st.session_state.field_qty = int(quantity)
+        st.caption(
+            "2 以上にすると、同じ商品名・仕入先・単価で **管理IDだけ異なる複数行** を一度に作成します。"
+        )
 
         line_excl_yen = st.number_input(
             "仕入金額（税抜・必須）",
             min_value=1,
             step=1,
             key="field_line_excl_yen",
-            help="1点あたりの税抜の仕入金額（円）。台帳の各行は数量1で、この金額が税抜行計になります。",
+            help="1点あたりの税抜の仕入金額（円）。台帳の各行は1点あたりの金額として保存されます。",
         )
     
         st.radio(
@@ -4863,9 +6479,8 @@ def main():
             str(st.session_state.get("field_consumption_tax_choice", "10%"))
         )
     
-        _q = int(quantity)
+        _n_save = max(1, min(2000, int(st.session_state.get("field_row_quantity", 1))))
         _lex_inp = int(line_excl_yen)
-        _n_save = _q
         _line_ex_one = _lex_inp
         _line_in_one = price_incl_tax(_line_ex_one, _tax_r)
     
@@ -4873,11 +6488,11 @@ def main():
         with price_row[0]:
             st.metric("仕入金額（税抜・1点）", f"¥{_line_ex_one:,}")
             _cap_rows = (
-                f"確定時は **{_n_save} 行**（各行 数量1）。税抜合計（参考） ¥{_line_ex_one * _n_save:,}。"
+                f"確定時は **{_n_save} 行**（各行「{COL_QTY}」**1**）。税抜合計（参考） ¥{_line_ex_one * _n_save:,}。"
             )
             if _n_save > 1:
                 _cap_rows += (
-                    "写真があるとき、数量が2以上なら **同じ画像URLを全行** に記録します。"
+                    "写真があるとき、複数行なら **同じ画像URLを全行** に記録します。"
                 )
             st.caption(_cap_rows)
         with price_row[1]:
@@ -4889,7 +6504,7 @@ def main():
                 st.caption(f"消費税{_tl}を行合計に四捨五入")
         with price_row[2]:
             st.caption(
-                "原価は各行の仕入金額（税抜）です。販売予定・実売・販売元の詳細は下の **価格管理／販売管理** で入力します。"
+                "原価は各行の仕入金額（税抜）です。販売予定・実売の詳細は下の **価格管理／販売管理** で入力します。"
             )
     
         st.markdown("##### 価格管理（任意）")
@@ -4902,22 +6517,22 @@ def main():
             min_value=0,
             step=1,
             key="field_planned_sale_excl",
-            help="1点あたり。0 のとき台帳では空欄。税抜行計・税込総額は各行数量1として自動計算します。",
+            help="1点あたり。0 のとき台帳では空欄。税抜行計・税込総額は各行1点として自動計算します。",
         )
     
         st.markdown("##### 販売・実売について")
         st.caption(
             "このタブでは **新規行の追加のみ** です（常に **在庫中**）。"
-            "**販売元管理ID・実売・販売済更新** は **販売管理** タブを使用してください。"
+            "**実売・販売済の更新** は **販売管理** タブを使用してください。"
         )
         _pl_u = int(planned_sale_excl)
         _act_u = 0
-        _cogs_preview = _lex_inp * _q
+        _cogs_preview = _lex_inp * _n_save
         _pl_u_gp = _pl_u
         _tax_preview = _tax_r
         _st_gp = STATUS_IN_STOCK
         _plex, _pin, _aex, _ain = _planned_actual_line_amounts(
-            _q, _pl_u_gp, _act_u, _st_gp, _tax_preview
+            _n_save, _pl_u_gp, _act_u, _st_gp, _tax_preview
         )
         _gp_preview = _compute_gross_profit_row(
             _cogs_preview,
@@ -4971,7 +6586,6 @@ def main():
     
         if confirm:
             validation_ok = True
-            _sale_src_save = ""
             _act_ex2 = 0
             if not (product_name or "").strip():
                 st.error("商品名を入力してください。")
@@ -4981,6 +6595,11 @@ def main():
                 validation_ok = False
             elif int(line_excl_yen) < 1:
                 st.error("仕入金額（税抜）を1円以上で入力してください。")
+                validation_ok = False
+            elif not str(
+                st.session_state.get("field_inventory_category", "") or ""
+            ).strip():
+                st.error("在庫カテゴリーを入力してください。")
                 validation_ok = False
 
             if validation_ok:
@@ -4993,8 +6612,11 @@ def main():
                 _stat2 = STATUS_IN_STOCK
                 memo_s = (memo or "").strip()
     
-                _q2 = int(quantity)
-                n_save = _q2
+                _rq2 = max(1, min(2000, int(st.session_state.get("field_row_quantity", 1))))
+                _icat2 = str(
+                    st.session_state.get("field_inventory_category", "") or ""
+                ).strip()
+                n_save = _rq2
                 urls: list[str] = [""] * n_save
                 _record_dt = jst_now_str()
                 ready_for_sheet = True
@@ -5061,11 +6683,12 @@ def main():
                                             urls[i],
                                             ids[i],
                                             memo_s,
+                                            quantity=1,
+                                            inventory_category=_icat2,
                                             planned_sale_unit_excl_yen=_plan2,
                                             actual_sale_unit_excl_yen=_act_ex2,
                                             stock_status=_stat2,
                                             consumption_tax_rate=_tax_r2,
-                                            sale_source_management_id=_sale_src_save,
                                         )
                                     )
                                 _append_inventory_data_rows(_reg_batch)
