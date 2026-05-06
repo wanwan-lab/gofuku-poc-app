@@ -1776,11 +1776,21 @@ def ensure_worksheet_header():
     try:
         first = ws.row_values(1)
         if not first or first[: len(EXPECTED_HEADERS)] != EXPECTED_HEADERS:
-            ws.update("A1", [EXPECTED_HEADERS], value_input_option="USER_ENTERED")
+            # ヘッダー差分があると追記列が右にずれて保存されるため、既存データ行も
+            # 旧ヘッダー名ベースで EXPECTED_HEADERS 順へ正規化してから書き戻す。
+            raw = ws.get_all_values()
+            values: list[list[Any]] = [EXPECTED_HEADERS]
+            if raw:
+                header0 = [("" if c is None else str(c)).strip() for c in raw[0]]
+                for rr in raw[1:]:
+                    values.append(_sheet_header_row_to_expected_list(header0, list(rr)))
+            ws.clear()
+            ws.update("A1", values, value_input_option="USER_ENTERED")
             try:
                 _apply_inventory_amount_number_formats(ws)
             except Exception:
                 pass
+            _bump_inventory_sheet_cache_bust()
         return ws
     except Exception:
         return None
