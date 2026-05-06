@@ -251,6 +251,10 @@ STOCKTAKE_CAND_PAGE_SIZE = 5
 STOCKTAKE_CAND_AI_MAX = 40
 # 棚卸し登録: 表記ゆれ・洋服・雑貨でも候補を拾うため既定をやや低め（無関係行はプロンプトで除外指示）
 STOCKTAKE_CAND_MIN_CONFIDENCE = 0.14
+# 棚卸しAI照合: 台帳コンテキストの最大行数（対象リスト内で上限）
+STOCKTAKE_AI_CONTEXT_MAX_LINES = 2000
+# 販売管理AI照合: 台帳コンテキストの最大行数（在庫中を広く拾うため通常より大きめ）
+SALES_AI_CONTEXT_MAX_LINES = 2000
 SESSION_KEY_INV_SHEET_CACHE_BUST = "_inv_sheet_cache_bust"
 # 在庫一覧: 棚卸し「今回の対象リスト」を台帳フォルダに JSON で永続化（アプリ終了後も維持）
 STOCKTAKE_WORK_SESSION_FILENAME = "stocktake_work_session.json"
@@ -2195,14 +2199,21 @@ def _inv_stocktake_work_remaining_clear() -> None:
 
 
 def _inv_stocktake_work_remaining_prune(df: pd.DataFrame) -> None:
-    """販売済・削除などで在庫中でなくなった ID を残リストから外す。空になればセッション終了。"""
+    """棚卸セッションの残り管理IDを同期する。
+
+    - 販売済・削除などで在庫中でなくなった ID は残リストから外す
+    - セッション開始後に新規追加された在庫中 ID は残リストへ自動追加する
+    - 残りが空ならセッション終了
+    """
     cur = _inv_stocktake_work_remaining_get()
     if cur is None:
         return
     valid = _all_in_stock_management_ids(df)
-    newrem = {m for m in cur if m in valid}
     _, _, _, old_orig, old_snap = _inv_stocktake_work_read_disk()
-    new_orig = (old_orig & valid) if old_orig else newrem
+    base_orig = set(old_orig) if old_orig else set(cur)
+    new_added = valid - base_orig
+    newrem = ({m for m in cur if m in valid}) | new_added
+    new_orig = (base_orig & valid) | new_added
     new_snap: dict[str, str] = {}
     for m in new_orig:
         if m in old_snap:
@@ -2281,6 +2292,15 @@ def _iterate_gemini_inventory_rows(
     sub = _ledger_in_stock_rows(df) if only_in_stock else df
     if sub.empty:
         return
+    # 販売・棚卸し照合（only_in_stock=True）では最新登録行を優先して
+    # コンテキストに含める。台帳件数が多い場合に新規追加行が max_lines で
+    # 切り落とされるのを防ぐ。
+    if management_ids_filter is None and only_in_stock and COL_DATETIME in sub.columns:
+        _dt = pd.to_datetime(sub[COL_DATETIME], errors="coerce")
+        sub = sub.assign(_dt_for_gemini_sort=_dt).sort_values(
+            "_dt_for_gemini_sort", ascending=False, na_position="last"
+        )
+        sub = sub.drop(columns=["_dt_for_gemini_sort"], errors="ignore")
     eff_max_lines = int(max_lines)
     if management_ids_filter is not None:
         filt = {str(x).strip() for x in management_ids_filter if str(x).strip()}
@@ -2844,10 +2864,57 @@ def _sheet_header_row_to_expected_list(header: list[str], row: list[Any]) -> lis
     return [out[c] for c in EXPECTED_HEADERS]
 
 
+def _repair_rows_shifted_by_sale_image_column(df: pd.DataFrame) -> pd.DataFrame:
+    """販売画像URL列追加前の旧列順で追記された行を補正する。"""
+    if df is None or df.empty:
+        return df
+    req_cols = (
+        COL_SALE_IMAGE_URL,
+        COL_MANAGEMENT_ID,
+        COL_LAST_STOCKTAKE,
+        COL_VOUCHER_RECORDED_AT,
+        COL_VOUCHER_EVIDENCE_URL,
+        COL_PURCHASE_DATETIME,
+        COL_PURCHASE_MOVEMENT,
+        COL_LOAN_DATETIME,
+        COL_SALE_DATETIME,
+        COL_SALE_OUTBOUND_TYPE,
+    )
+    if any(c not in df.columns for c in req_cols):
+        return df
+    out = df.copy()
+    sale_img = out[COL_SALE_IMAGE_URL].astype(str).str.strip()
+    mid = out[COL_MANAGEMENT_ID].astype(str).str.strip()
+    mask = mid.eq("") & sale_img.str.fullmatch(r"G\d{8,}", na=False)
+    if not mask.any():
+        return out
+    for idx in out.index[mask]:
+        v16 = str(out.at[idx, COL_SALE_IMAGE_URL] or "").strip()
+        v17 = str(out.at[idx, COL_MANAGEMENT_ID] or "").strip()
+        v18 = str(out.at[idx, COL_LAST_STOCKTAKE] or "").strip()
+        v19 = str(out.at[idx, COL_VOUCHER_RECORDED_AT] or "").strip()
+        v20 = str(out.at[idx, COL_VOUCHER_EVIDENCE_URL] or "").strip()
+        v21 = str(out.at[idx, COL_PURCHASE_DATETIME] or "").strip()
+        v22 = str(out.at[idx, COL_PURCHASE_MOVEMENT] or "").strip()
+        v23 = str(out.at[idx, COL_LOAN_DATETIME] or "").strip()
+        v24 = str(out.at[idx, COL_SALE_DATETIME] or "").strip()
+        out.at[idx, COL_SALE_IMAGE_URL] = ""
+        out.at[idx, COL_MANAGEMENT_ID] = v16
+        out.at[idx, COL_LAST_STOCKTAKE] = v17
+        out.at[idx, COL_VOUCHER_RECORDED_AT] = v18
+        out.at[idx, COL_VOUCHER_EVIDENCE_URL] = v19
+        out.at[idx, COL_PURCHASE_DATETIME] = v20
+        out.at[idx, COL_PURCHASE_MOVEMENT] = v21
+        out.at[idx, COL_LOAN_DATETIME] = v22
+        out.at[idx, COL_SALE_DATETIME] = v23
+        out.at[idx, COL_SALE_OUTBOUND_TYPE] = v24
+    return out
+
+
 def load_inventory_dataframe() -> pd.DataFrame | None:
     """1行目をヘッダー、2行目以降をデータとして読み込み、列は EXPECTED_HEADERS に揃える。"""
     if _uses_local_inventory_csv():
-        return _inventory_csv_read_df()
+        return _repair_rows_shifted_by_sale_image_column(_inventory_csv_read_df())
     sid = _secret_str(SECRET_GOOGLE_SPREADSHEET_ID)
     if not sid:
         return None
@@ -2868,7 +2935,9 @@ def load_inventory_dataframe() -> pd.DataFrame | None:
     header0 = [("" if c is None else str(c)).strip() for c in raw[0]]
     rows = raw[1:]
     data_rows = [_sheet_header_row_to_expected_list(header0, list(r)) for r in rows]
-    return pd.DataFrame(data_rows, columns=EXPECTED_HEADERS)
+    return _repair_rows_shifted_by_sale_image_column(
+        pd.DataFrame(data_rows, columns=EXPECTED_HEADERS)
+    )
 
 
 def _ledger_hint_dataframe() -> pd.DataFrame | None:
@@ -6196,8 +6265,14 @@ def render_stocktake_scan_tab(
         elif df_ledger_hint is None or df_ledger_hint.empty:
             st.session_state["_stocktake_scan_warn"] = "台帳を読み込めないため照合できません。"
         else:
+            n_scope_st = len(st_rem_run or [])
+            max_lines_st_ctx = min(
+                STOCKTAKE_AI_CONTEXT_MAX_LINES,
+                max(400, n_scope_st + 20),
+            )
             inv_ctx_st = _build_gemini_inventory_context(
                 df_ledger_hint,
+                max_lines=max_lines_st_ctx,
                 only_in_stock=True,
                 management_ids_filter=st_rem_run,
             )
@@ -6977,8 +7052,15 @@ def _render_sales_management_tab(
     if do_match and uploaded is not None:
         inv_ctx_sale = ""
         if df_ledger_hint is not None and not df_ledger_hint.empty:
+            n_in_stock_ctx = int(_mask_ledger_in_stock(df_ledger_hint).sum())
+            max_lines_sale_ctx = min(
+                SALES_AI_CONTEXT_MAX_LINES,
+                max(400, n_in_stock_ctx + 20),
+            )
             inv_ctx_sale = _build_gemini_inventory_context(
-                df_ledger_hint, only_in_stock=True
+                df_ledger_hint,
+                only_in_stock=True,
+                max_lines=max_lines_sale_ctx,
             )
         if do_match and not (inv_ctx_sale or "").strip():
             st.warning(
