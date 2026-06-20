@@ -636,6 +636,72 @@ def _load_service_account_info() -> dict[str, Any]:
     )
 
 
+def _service_account_secrets_source() -> str:
+    """どの secrets キーから読むか（診断用・鍵本体は含めない）。"""
+    raw_b64 = st.secrets.get(SECRET_GOOGLE_SERVICE_ACCOUNT_JSON_B64)
+    if raw_b64 is not None and str(raw_b64).strip():
+        return SECRET_GOOGLE_SERVICE_ACCOUNT_JSON_B64
+    ga = st.secrets.get(SECRET_GOOGLE_SERVICE_ACCOUNT_SECTION)
+    if ga is not None:
+        info = dict(ga.to_dict() if hasattr(ga, "to_dict") else ga)
+        if (info.get("private_key") or "").strip() and (
+            info.get("client_email") or ""
+        ).strip():
+            return f"[{SECRET_GOOGLE_SERVICE_ACCOUNT_SECTION}]"
+    raw_json = st.secrets.get(SECRET_GOOGLE_SERVICE_ACCOUNT_JSON)
+    if raw_json is not None and str(raw_json).strip():
+        return SECRET_GOOGLE_SERVICE_ACCOUNT_JSON
+    if ga is not None:
+        return f"[{SECRET_GOOGLE_SERVICE_ACCOUNT_SECTION}]（不完全）"
+    return "未設定"
+
+
+def _service_account_auth_fingerprint() -> str:
+    """Secrets 更新時に gspread クライアントキャッシュを切り替える指紋。"""
+    try:
+        info = _load_service_account_info()
+    except Exception:
+        return "invalid"
+    pk_id = str(info.get("private_key_id") or "")
+    email = str(info.get("client_email") or "")
+    pk_len = len(str(info.get("private_key") or ""))
+    b64_len = len(str(st.secrets.get(SECRET_GOOGLE_SERVICE_ACCOUNT_JSON_B64) or "").strip())
+    return f"{_service_account_secrets_source()}|{pk_id}|{email}|{pk_len}|{b64_len}"
+
+
+def _format_service_account_debug_hint() -> str:
+    """JWT 失敗時に Cloud Secrets の状態を短く示す。"""
+    try:
+        info = _load_service_account_info()
+        src = _service_account_secrets_source()
+        b64_len = len(str(st.secrets.get(SECRET_GOOGLE_SERVICE_ACCOUNT_JSON_B64) or "").strip())
+        has_section = st.secrets.get(SECRET_GOOGLE_SERVICE_ACCOUNT_SECTION) is not None
+        has_json = bool(str(st.secrets.get(SECRET_GOOGLE_SERVICE_ACCOUNT_JSON) or "").strip())
+        parts = [
+            f"読込元={src}",
+            f"private_key_id={info.get('private_key_id', '?')}",
+            f"client_email={info.get('client_email', '?')}",
+            f"B64文字数={b64_len}",
+        ]
+        if has_section and src != f"[{SECRET_GOOGLE_SERVICE_ACCOUNT_SECTION}]":
+            parts.append(
+                f"警告: [{SECRET_GOOGLE_SERVICE_ACCOUNT_SECTION}] が残っています（削除推奨）"
+            )
+        if has_json and src != SECRET_GOOGLE_SERVICE_ACCOUNT_JSON:
+            parts.append(
+                f"警告: {SECRET_GOOGLE_SERVICE_ACCOUNT_JSON} が残っています（削除推奨）"
+            )
+        if src == f"[{SECRET_GOOGLE_SERVICE_ACCOUNT_SECTION}]":
+            parts.append(
+                f"Cloud では {SECRET_GOOGLE_SERVICE_ACCOUNT_JSON_B64} のみにしてください。"
+            )
+        elif src == SECRET_GOOGLE_SERVICE_ACCOUNT_JSON_B64 and b64_len < 500:
+            parts.append("B64 が短すぎます（途中で切れている可能性）。")
+        return " 【診断】" + " / ".join(parts)
+    except Exception as ex:
+        return f" 【診断】サービスアカウント情報を読めません: {ex}"
+
+
 def _credentials():
     info = _load_service_account_info()
     scopes = ("https://www.googleapis.com/auth/spreadsheets",)
@@ -643,8 +709,13 @@ def _credentials():
 
 
 @st.cache_resource
-def _gspread_client():
+def _gspread_client(auth_fingerprint: str):
+    _ = auth_fingerprint
     return gspread.authorize(_credentials())
+
+
+def _get_gspread_client():
+    return _gspread_client(_service_account_auth_fingerprint())
 
 
 def _parse_json_from_model(text: str) -> dict[str, Any]:
@@ -1925,7 +1996,7 @@ def _open_inventory_workbook():
     if not sid:
         return None
     try:
-        return _gspread_client().open_by_key(str(sid))
+        return _get_gspread_client().open_by_key(str(sid))
     except Exception:
         return None
 
@@ -1970,7 +2041,7 @@ def _inventory_sheet_get_all_values_cached(
     """
     _ = bust
     try:
-        sh = _gspread_client().open_by_key(str(sheet_id))
+        sh = _get_gspread_client().open_by_key(str(sheet_id))
     except Exception as e:
         hint = ""
         err = str(e)
@@ -1981,6 +2052,7 @@ def _inventory_sheet_get_all_values_cached(
                 f" python scripts/build_streamlit_secrets.py --cloud --print で生成し、"
                 f" [{SECRET_GOOGLE_SERVICE_ACCOUNT_SECTION}] と"
                 f" {SECRET_GOOGLE_SERVICE_ACCOUNT_JSON} は削除してください。"
+                f"{_format_service_account_debug_hint()}"
             )
         raise RuntimeError(
             "スプレッドシートを開けません。"

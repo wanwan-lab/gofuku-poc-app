@@ -3,3 +3,4 @@ gofuku-zaiko-app-*.json
 *-*.json
 .streamlit/secrets.toml
 .streamlit/service_account.json
+cloud-secrets.toml
