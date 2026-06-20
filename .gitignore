@@ -1,0 +1,5 @@
+# サービスアカウント鍵・Streamlit secrets（Git に含めない）
+gofuku-zaiko-app-*.json
+*-*.json
+.streamlit/secrets.toml
+.streamlit/service_account.json

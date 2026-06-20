@@ -10,6 +10,7 @@ st.secrets に以下を設定してください（例は .streamlit/secrets.toml
   GOOGLE_DRIVE_FOLDER_ID     … 保存先フォルダID（GAS に渡す）
   google_service_account     … サービスアカウントJSONの各フィールド（[google_service_account] セクション）
     または GOOGLE_SERVICE_ACCOUNT_JSON … JSON文字列1本
+    または GOOGLE_SERVICE_ACCOUNT_JSON_B64 … JSON を Base64 化した1行（**Streamlit Cloud 推奨**）
 
 スプレッドシート運用時に追加で必須:
   GOOGLE_SPREADSHEET_ID      … 記録用スプレッドシートID（``INVENTORY_SOURCE=csv`` のときは不要で、共有 ``inventory.csv`` を使用）
@@ -232,6 +233,7 @@ SECRET_GOOGLE_DRIVE_FOLDER_ID = "GOOGLE_DRIVE_FOLDER_ID"
 SECRET_GOOGLE_SPREADSHEET_ID = "GOOGLE_SPREADSHEET_ID"
 SECRET_GOOGLE_WORKSHEET_NAME = "GOOGLE_WORKSHEET_NAME"
 SECRET_GOOGLE_SERVICE_ACCOUNT_JSON = "GOOGLE_SERVICE_ACCOUNT_JSON"
+SECRET_GOOGLE_SERVICE_ACCOUNT_JSON_B64 = "GOOGLE_SERVICE_ACCOUNT_JSON_B64"
 SECRET_GOOGLE_SERVICE_ACCOUNT_SECTION = "google_service_account"
 SECRET_APP_PASSWORD = "APP_PASSWORD"
 SECRET_INVENTORY_SOURCE = "INVENTORY_SOURCE"
@@ -563,23 +565,74 @@ def _gemini_voucher_model_name() -> str:
     return DEFAULT_GEMINI_MODEL
 
 
+def _normalize_service_account_info(info: dict[str, Any]) -> dict[str, Any]:
+    """Streamlit secrets / TOML 経由で壊れやすい private_key 等を正規化する。"""
+    out = dict(info)
+    pk = out.get("private_key")
+    if pk is not None:
+        s = str(pk).strip()
+        if "\\n" in s:
+            s = s.replace("\\n", "\n")
+        out["private_key"] = s
+    for k in (
+        "type",
+        "project_id",
+        "private_key_id",
+        "client_email",
+        "client_id",
+        "auth_uri",
+        "token_uri",
+        "auth_provider_x509_cert_url",
+        "client_x509_cert_url",
+        "universe_domain",
+    ):
+        if k in out and out[k] is not None:
+            out[k] = str(out[k]).strip()
+    return out
+
+
 def _load_service_account_info() -> dict[str, Any]:
+    raw_b64 = st.secrets.get(SECRET_GOOGLE_SERVICE_ACCOUNT_JSON_B64)
+    if raw_b64 is not None and str(raw_b64).strip():
+        padded = str(raw_b64).strip()
+        pad = (-len(padded)) % 4
+        if pad:
+            padded += "=" * pad
+        try:
+            payload = base64.b64decode(padded, validate=False)
+            info = json.loads(payload.decode("utf-8"))
+        except (ValueError, json.JSONDecodeError, UnicodeDecodeError) as e:
+            raise ValueError(
+                f"{SECRET_GOOGLE_SERVICE_ACCOUNT_JSON_B64} のデコードに失敗しました。"
+                " scripts/build_streamlit_secrets.py --cloud --print で再生成してください。"
+            ) from e
+        return _normalize_service_account_info(info)
+
+    ga = st.secrets.get(SECRET_GOOGLE_SERVICE_ACCOUNT_SECTION)
+    if ga is not None:
+        info = dict(ga.to_dict() if hasattr(ga, "to_dict") else ga)
+        if (info.get("private_key") or "").strip() and (
+            info.get("client_email") or ""
+        ).strip():
+            return _normalize_service_account_info(info)
+
     raw_json = st.secrets.get(SECRET_GOOGLE_SERVICE_ACCOUNT_JSON)
     if raw_json is not None and str(raw_json).strip():
         if isinstance(raw_json, str):
-            return json.loads(raw_json)
+            return _normalize_service_account_info(json.loads(raw_json))
         raise ValueError(
             f"{SECRET_GOOGLE_SERVICE_ACCOUNT_JSON} は文字列である必要があります。"
         )
-    ga = st.secrets.get(SECRET_GOOGLE_SERVICE_ACCOUNT_SECTION)
+
     if ga is not None:
-        if hasattr(ga, "to_dict"):
-            return dict(ga.to_dict())
-        return dict(ga)
+        info = dict(ga.to_dict() if hasattr(ga, "to_dict") else ga)
+        return _normalize_service_account_info(info)
+
     raise ValueError(
         "サービスアカウントが見つかりません。"
-        f" [{SECRET_GOOGLE_SERVICE_ACCOUNT_SECTION}] セクションか "
-        f"{SECRET_GOOGLE_SERVICE_ACCOUNT_JSON} を設定してください。"
+        f" {SECRET_GOOGLE_SERVICE_ACCOUNT_JSON_B64}（Cloud 推奨）、"
+        f"[{SECRET_GOOGLE_SERVICE_ACCOUNT_SECTION}]、"
+        f"{SECRET_GOOGLE_SERVICE_ACCOUNT_JSON} のいずれかを設定してください。"
     )
 
 
@@ -1919,10 +1972,20 @@ def _inventory_sheet_get_all_values_cached(
     try:
         sh = _gspread_client().open_by_key(str(sheet_id))
     except Exception as e:
+        hint = ""
+        err = str(e)
+        if "Invalid JWT Signature" in err or "invalid_grant" in err:
+            hint = (
+                " JWT 署名エラー: secrets のサービスアカウント鍵が GCP と一致していません。"
+                f" Streamlit Cloud では {SECRET_GOOGLE_SERVICE_ACCOUNT_JSON_B64}（1行 Base64）を推奨します。"
+                f" python scripts/build_streamlit_secrets.py --cloud --print で生成し、"
+                f" [{SECRET_GOOGLE_SERVICE_ACCOUNT_SECTION}] と"
+                f" {SECRET_GOOGLE_SERVICE_ACCOUNT_JSON} は削除してください。"
+            )
         raise RuntimeError(
             "スプレッドシートを開けません。"
             f"{SECRET_GOOGLE_SPREADSHEET_ID}・共有権限・[{SECRET_GOOGLE_SERVICE_ACCOUNT_SECTION}] を確認してください。"
-            f" 詳細: {e}"
+            f"{hint} 詳細: {e}"
         ) from e
     try:
         try:
