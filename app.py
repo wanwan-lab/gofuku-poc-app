@@ -4580,14 +4580,10 @@ def render_ledger_dashboard(df: pd.DataFrame) -> None:
     """在庫台帳 DataFrame から入出庫集計・仕入先・取引先別・グラフを表示する。"""
     st.subheader("集計")
     st.caption(
-        "上の表の現在の内容（未保存の編集を含む）を集計します。"
-        f"入出庫の **金額** は「{COL_PRICE_EXCL}」「{COL_PRICE_INCL}」（仕入・税抜・税込）を行合計として集計します（販売済行の出庫側も実売ではなく当行の仕入金額で計上）。"
-        f"仕入先・取引先別の粗利は「{COL_GROSS_PROFIT}」列を合算しています（税抜・台帳保存時の値）。"
-        f"入出庫の **数量** は「{COL_QTY}」列（空・未入力は **1**）を、出庫側は **販売済の行** または "
-        f"**在庫中で {COL_SALE_OUTBOUND_TYPE} が「出庫」で始まる行** で合算します（入庫側は在庫中の入庫行）。"
-        "期間フィルタと月次の軸は **販売済は販売日時**（未入力の旧行は日時にフォールバック）、在庫中は **日時** です。"
-        "（税抜の仕入金額が空で税込だけある行は、10%/8%/非課税のいずれかに税込が一致する税抜を逆算します。"
-        "カンマ区切り・円記号付きの数値も読み取ります。）"
+        "期間・仕入先で絞った台帳行を集計します。"
+        f"金額は仕入（{COL_PRICE_EXCL}／{COL_PRICE_INCL}）ベース、"
+        f"販売価格は {COL_PLANNED_SALE}、粗利は {COL_GROSS_PROFIT}（いずれも税抜）です。"
+        "販売済の日付軸は販売日時（未入力は日時）、在庫中は日時です。"
     )
     if df.empty:
         st.info("集計する行がありません。")
@@ -4705,12 +4701,7 @@ def render_ledger_dashboard(df: pd.DataFrame) -> None:
                     0,
                 )
     st.markdown("##### ライフサイクル指標")
-    st.caption(
-        "次の **5つ** は **From〜To・仕入先フィルタ** に合致する行のみを対象にします（数量列による追加の絞り込みはありません）。"
-        f"原価は台帳の **{COL_PRICE_EXCL}** / **{COL_PRICE_INCL}** を合算した税抜・税込の総額です。"
-        "実売は **販売済** 行の **実売金額（税抜・税込）** を行計で合算したものです（実売単価が 0 の行は含みません）。"
-        "確定粗利は **販売済** 行の粗利列（税抜）の合計です。"
-    )
+    st.caption("期間・仕入先で絞った行の原価・実売（販売済）・確定粗利（税抜）です。")
     _lc1, _lc2, _lc3, _lc4, _lc5 = st.columns(5)
     with _lc1:
         st.metric("税抜原価総額（期間内）", f"¥{period_cogs_ex:,}")
@@ -4740,12 +4731,9 @@ def render_ledger_dashboard(df: pd.DataFrame) -> None:
     q_out = _finite_int(flt["_qty_out"].sum(), 0)
     ex_in = _finite_int(flt["_amt_ex_in"].sum(), 0)
     ex_out = _finite_int(flt["_amt_ex_out"].sum(), 0)
-    in_in = _finite_int(flt["_amt_in_in"].sum(), 0)
-    in_out = _finite_int(flt["_amt_in_out"].sum(), 0)
 
     q_den = 0
     ex_den = 0
-    in_den = 0
     if COL_STOCK_STATUS in flt.columns:
         _sn_fl = flt[COL_STOCK_STATUS].astype(str).map(_normalize_stock_status)
         _flt_is = flt.loc[_sn_fl == STATUS_IN_STOCK]
@@ -4766,20 +4754,11 @@ def render_ledger_dashboard(df: pd.DataFrame) -> None:
                     .sum(),
                     0,
                 )
-            if COL_PRICE_INCL in _flt_is.columns:
-                in_den = _finite_int(
-                    _series_to_numeric_loose(_flt_is[COL_PRICE_INCL])
-                    .fillna(0)
-                    .sum(),
-                    0,
-                )
 
     q_ratio_in = _dash_ratio_pct(q_in, q_den)
     q_ratio_out = _dash_ratio_pct(q_out, q_den)
     ex_ratio_in = _dash_ratio_pct(ex_in, ex_den)
     ex_ratio_out = _dash_ratio_pct(ex_out, ex_den)
-    in_ratio_in = _dash_ratio_pct(in_in, in_den)
-    in_ratio_out = _dash_ratio_pct(in_out, in_den)
 
     if COL_STOCK_STATUS not in flt.columns:
         st.info(
@@ -4787,10 +4766,7 @@ def render_ledger_dashboard(df: pd.DataFrame) -> None:
         )
 
     st.markdown("##### 期間内の数量")
-    st.caption(
-        f"比率の分母は、期間・仕入先フィルタ後の台帳のうち **{STATUS_IN_STOCK}** の行について"
-        f" **{COL_QTY}** の合計です（列が無い場合は件数）。"
-    )
+    st.caption(f"分母は **{STATUS_IN_STOCK}** 行の {COL_QTY} 合計です。")
     mq1, mq2, mq3, mq4 = st.columns(4)
     mq1.metric("入庫 合計数量", f"{q_in:,}")
     mq2.metric("出庫 合計数量", f"{q_out:,}")
@@ -4799,33 +4775,28 @@ def render_ledger_dashboard(df: pd.DataFrame) -> None:
 
     st.markdown("##### 期間内の金額（仕入ベース・税抜）")
     st.caption(
-        f"比率の分母は、同じくフィルタ後の **{STATUS_IN_STOCK}** 行の **{COL_PRICE_EXCL}**（仕入・税抜）の合計です。"
+        f"分母は **{STATUS_IN_STOCK}** 行の {COL_PRICE_EXCL} 合計。"
+        f"販売価格は {COL_PLANNED_SALE} の行計（数量×単価）です。"
     )
-    mx1, mx2, mx3, mx4 = st.columns(4)
+    period_planned_sale_excl = 0
+    if COL_PLANNED_SALE in flt.columns and not flt.empty:
+        _ps = _series_to_numeric_loose(flt[COL_PLANNED_SALE]).fillna(0)
+        if COL_QTY in flt.columns:
+            _qv = flt[COL_QTY].map(lambda x: max(1, _finite_int(x, 1)))
+            period_planned_sale_excl = _finite_int((_ps * _qv.astype(np.int64)).sum(), 0)
+        else:
+            period_planned_sale_excl = _finite_int(_ps.sum(), 0)
+    mx1, mx2, mx3, mx4, mx5 = st.columns(5)
     mx1.metric("入庫 合計金額（税抜）", f"¥{ex_in:,}")
     mx2.metric("出庫 合計金額（税抜）", f"¥{ex_out:,}")
     mx3.metric("入庫÷ステータス在庫中（税抜比率）", ex_ratio_in)
     mx4.metric("出庫÷ステータス在庫中（税抜比率）", ex_ratio_out)
+    mx5.metric("販売価格合計（税抜）", f"¥{period_planned_sale_excl:,}")
     _gp_period: int | None = None
     if COL_GROSS_PROFIT in flt.columns:
         _gp_period = _finite_int(
             _series_to_numeric_loose(flt[COL_GROSS_PROFIT]).fillna(0).sum(), 0
         )
-    if _gp_period is not None:
-        st.metric("粗利合計（税抜）", f"¥{_gp_period:,}")
-    else:
-        st.metric("粗利合計（税抜）", "—")
-
-    st.markdown("##### 期間内の金額（仕入ベース・税込）")
-    st.caption(
-        f"比率の分母は、フィルタ後の **{STATUS_IN_STOCK}** 行の **{COL_PRICE_INCL}**（仕入・税込）の合計です。"
-        "粗利は台帳の **税抜** 列の期間合計です（上の税抜ブロックと同一値）。"
-    )
-    mi1, mi2, mi3, mi4 = st.columns(4)
-    mi1.metric("入庫 合計金額（税込）", f"¥{in_in:,}")
-    mi2.metric("出庫 合計金額（税込）", f"¥{in_out:,}")
-    mi3.metric("入庫÷ステータス在庫中（税込比率）", in_ratio_in)
-    mi4.metric("出庫÷ステータス在庫中（税込比率）", in_ratio_out)
     if _gp_period is not None:
         st.metric("粗利合計（税抜）", f"¥{_gp_period:,}")
     else:
@@ -5434,19 +5405,77 @@ def infer_inventory_categories_with_gemini(
     return out
 
 
+def _analytics_line_qty_multiplier(df: pd.DataFrame) -> pd.Series:
+    if COL_QTY in df.columns:
+        return df[COL_QTY].map(lambda x: max(1, _finite_int(x, 1))).astype(np.int64)
+    return pd.Series(1, index=df.index, dtype=np.int64)
+
+
+def _analytics_planned_sale_line_series(df: pd.DataFrame) -> pd.Series:
+    if df.empty or COL_PLANNED_SALE not in df.columns:
+        return pd.Series(0.0, index=df.index, dtype=float)
+    base = _series_to_numeric_loose(df[COL_PLANNED_SALE]).fillna(0).clip(lower=0)
+    return base * _analytics_line_qty_multiplier(df)
+
+
+def _analytics_pie_group_labels(
+    sub: pd.DataFrame, dimension: str, cat_cache: dict[str, str]
+) -> pd.Series:
+    if dimension == COL_SUPPLIER:
+        if COL_SUPPLIER in sub.columns:
+            return sub[COL_SUPPLIER].fillna("(未設定)").astype(str)
+        return pd.Series("(未設定)", index=sub.index, dtype=str)
+    return sub.apply(lambda r: _resolve_inventory_category_label(r, cat_cache), axis=1)
+
+
+def _sort_analytics_pie_df(pie_df: pd.DataFrame, sort_mode: str) -> pd.DataFrame:
+    label_col = pie_df.columns[0]
+    val_col = pie_df.columns[1]
+    if sort_mode == "金額の多い順":
+        return pie_df.sort_values(val_col, ascending=False, kind="mergesort")
+    if sort_mode == "金額の少ない順":
+        return pie_df.sort_values(val_col, ascending=True, kind="mergesort")
+    return pie_df.sort_values(label_col, ascending=True, kind="mergesort")
+
+
+def _build_analytics_pie_df(
+    sub: pd.DataFrame,
+    *,
+    dimension: str,
+    value_series: pd.Series,
+    cat_cache: dict[str, str],
+    sort_mode: str,
+) -> pd.DataFrame:
+    label_col = COL_SUPPLIER if dimension == COL_SUPPLIER else "カテゴリー"
+    work = sub.copy()
+    work["_pie_label"] = _analytics_pie_group_labels(work, dimension, cat_cache)
+    work["_pie_val"] = pd.to_numeric(value_series, errors="coerce").fillna(0.0)
+    pie_df = (
+        work.groupby("_pie_label", dropna=False)["_pie_val"]
+        .sum()
+        .reset_index()
+        .rename(columns={"_pie_label": label_col, "_pie_val": "金額税抜"})
+    )
+    return _sort_analytics_pie_df(pie_df, sort_mode)
+
+
 def _render_inventory_category_pie_altair(
-    pie_df: pd.DataFrame, *, chart_title: str | None = None
+    pie_df: pd.DataFrame,
+    *,
+    chart_title: str | None = None,
+    label_col: str | None = None,
 ) -> None:
     """Plotly 未導入時のカテゴリ構成比（円グラフ相当）。"""
+    lbl = label_col or str(pie_df.columns[0])
     ttl = chart_title or "原価シェア（在庫カテゴリー・Altair）"
     chart = (
         alt.Chart(pie_df)
         .mark_arc(innerRadius=55)
         .encode(
             theta=alt.Theta("金額税抜:Q", stack=True),
-            color=alt.Color("カテゴリー:N"),
+            color=alt.Color(f"{lbl}:N"),
             tooltip=[
-                alt.Tooltip("カテゴリー:N"),
+                alt.Tooltip(f"{lbl}:N"),
                 alt.Tooltip("金額税抜:Q", title="金額（税抜）", format=","),
             ],
         )
@@ -5459,21 +5488,28 @@ def _render_inventory_category_pie_altair(
 
 
 def _render_inventory_category_pie(
-    pie_df: pd.DataFrame, *, chart_title: str | None = None
+    pie_df: pd.DataFrame,
+    *,
+    chart_title: str | None = None,
+    label_col: str | None = None,
+    empty_caption: str = "対象ステータスで原価が入っている行がありません。",
 ) -> None:
     """plotly が入っていれば ``st.plotly_chart``、なければ Altair にフォールバック。"""
     if float(pie_df["金額税抜"].sum()) <= 0:
-        st.caption("対象ステータスで原価が入っている行がありません。")
+        st.caption(empty_caption)
         return
+    lbl = label_col or str(pie_df.columns[0])
     ttl = chart_title or "原価シェア（在庫カテゴリー）"
     try:
         import plotly.express as px
     except ImportError:
-        _render_inventory_category_pie_altair(pie_df, chart_title=ttl)
+        _render_inventory_category_pie_altair(
+            pie_df, chart_title=ttl, label_col=lbl
+        )
         return
     fig = px.pie(
         pie_df,
-        names="カテゴリー",
+        names=lbl,
         values="金額税抜",
         hole=0.35,
         title=ttl,
@@ -5732,10 +5768,9 @@ def render_analytics_dashboard_page() -> None:
 
     st.markdown("##### 分析の対象・構成比の並び")
     st.caption(
-        "上段の **ステータス** で、このページのメトリクス・円グラフ・AI 推定の対象行を絞り込みます（在庫中だけ／販売済だけ／両方など）。"
-        "下段の **構成比の並び** は円グラフの凡例・扇の順に反映されます。"
+        "ステータスで対象行を絞り込み、構成比は集計軸（カテゴリー／仕入先）と並び順を選べます。"
     )
-    _ac1, _ac2 = st.columns(2)
+    _ac1, _ac2, _ac3 = st.columns(3)
     with _ac1:
         _sel_st = st.multiselect(
             "ステータス（対象に含める）",
@@ -5744,9 +5779,16 @@ def render_analytics_dashboard_page() -> None:
             key="analytics_status_include",
         )
     with _ac2:
+        _pie_dim = st.selectbox(
+            "構成比の集計軸",
+            options=["在庫カテゴリー", COL_SUPPLIER],
+            index=0,
+            key="analytics_pie_dimension",
+        )
+    with _ac3:
         _pie_sort = st.selectbox(
-            "構成比（円グラフ）のカテゴリー並び",
-            options=["金額の多い順", "金額の少ない順", "カテゴリー名（昇順）"],
+            "構成比の並び",
+            options=["金額の多い順", "金額の少ない順", "名前（昇順）"],
             index=0,
             key="analytics_pie_category_sort",
         )
@@ -5759,53 +5801,77 @@ def render_analytics_dashboard_page() -> None:
         calc[COL_STOCK_STATUS].astype(str).map(_normalize_stock_status).isin(_sel_norm)
     )
     sub = calc.loc[_mask_status].copy()
-    cg = _series_to_numeric_loose(sub[COL_PRICE_EXCL]).fillna(0).clip(lower=0)
+    _rq = _analytics_line_qty_multiplier(sub)
+    cg = _series_to_numeric_loose(sub[COL_PRICE_EXCL]).fillna(0).clip(lower=0) * _rq
     total_inv = int(cg.sum())
     n_lines = int(len(sub))
     gp_s = _series_to_numeric_loose(sub[COL_GROSS_PROFIT]).fillna(0)
     gp_total = int(gp_s.sum())
+    planned_total = int(_analytics_planned_sale_line_series(sub).sum())
 
-    k1, k2, k3 = st.columns(3)
+    k1, k2, k3, k4 = st.columns(4)
     k1.metric(f"対象（{_status_lbl}）総額（仕入・税抜）", f"¥{total_inv:,}")
     k2.metric(f"対象（{_status_lbl}）行数", f"{n_lines:,}")
     k3.metric(
         f"対象（{_status_lbl}）粗利合計（税抜）",
         f"¥{gp_total:,}",
     )
-
-    st.markdown("##### カテゴリー別 在庫原価（税抜）の構成比")
-    st.caption(
-        f"対象ステータス: **{_status_lbl}**。優先順: ①台帳の **{COL_CATEGORY}** 列 ②"
-        f"**{INVENTORY_CATEGORY_CACHE_FILENAME}**（在庫一覧の AI 一括などで更新） ③和装向けキーワード ④**その他**。"
-        "金額は仕入金額（税抜）を行で合算（数量列があるときは原価×数量）。"
+    k4.metric(
+        f"対象（{_status_lbl}）販売価格合計（税抜）",
+        f"¥{planned_total:,}",
     )
+
+    _pie_dim_key = COL_SUPPLIER if _pie_dim == COL_SUPPLIER else "カテゴリー"
+    _pie_dim_lbl = COL_SUPPLIER if _pie_dim == COL_SUPPLIER else "在庫カテゴリー"
     _cat_cache = _inventory_category_cache_load()
     sub["_category"] = sub.apply(
         lambda r: _resolve_inventory_category_label(r, _cat_cache), axis=1
     )
-    sub["_px"] = _series_to_numeric_loose(sub[COL_PRICE_EXCL]).fillna(0)
-    if COL_QTY in sub.columns:
-        _rq_pie = sub[COL_QTY].map(lambda x: max(1, _finite_int(x, 1)))
-        sub["_px"] = sub["_px"] * _rq_pie
-    pie_df = sub.groupby("_category", dropna=False)["_px"].sum().reset_index()
-    pie_df.columns = ["カテゴリー", "金額税抜"]
-    if _pie_sort == "金額の多い順":
-        pie_df = pie_df.sort_values("金額税抜", ascending=False, kind="mergesort")
-    elif _pie_sort == "金額の少ない順":
-        pie_df = pie_df.sort_values("金額税抜", ascending=True, kind="mergesort")
-    else:
-        pie_df = pie_df.sort_values("カテゴリー", ascending=True, kind="mergesort")
-    _pie_chart_title = f"原価シェア（在庫カテゴリー）— {_status_lbl}"
-    _render_inventory_category_pie(pie_df, chart_title=_pie_chart_title)
+    _cost_vals = _series_to_numeric_loose(sub[COL_PRICE_EXCL]).fillna(0) * _rq
 
-    st.markdown("##### カテゴリー別 粗利（税抜）の構成比")
+    st.markdown("##### 在庫原価（税抜）の構成比")
+    st.caption(f"対象: **{_status_lbl}**／軸: **{_pie_dim_lbl}**（仕入金額×数量）。")
+    pie_df = _build_analytics_pie_df(
+        sub,
+        dimension=_pie_dim_key,
+        value_series=_cost_vals,
+        cat_cache=_cat_cache,
+        sort_mode=_pie_sort,
+    )
+    _pie_chart_title = f"原価シェア（{_pie_dim_lbl}）— {_status_lbl}"
+    _render_inventory_category_pie(
+        pie_df,
+        chart_title=_pie_chart_title,
+        label_col=str(pie_df.columns[0]),
+        empty_caption="対象行に原価（税抜）が入っている行がありません。",
+    )
+
+    st.markdown("##### 販売価格（税抜）の構成比")
     st.caption(
-        f"対象ステータス: **{_status_lbl}**。カテゴリー付けは上の原価チャートと同じです。"
-        f"**{STATUS_IN_STOCK}** および **{STATUS_SOLD}** の行について、台帳の **{COL_GROSS_PROFIT}**（税抜）を"
-        "カテゴリー別に合算します（台帳保存時の再計算値）。**対象外** の行はこのチャートでは含めません。"
+        f"対象: **{_status_lbl}**／軸: **{_pie_dim_lbl}**（{COL_PLANNED_SALE}×数量）。"
+    )
+    sale_pie_df = _build_analytics_pie_df(
+        sub,
+        dimension=_pie_dim_key,
+        value_series=_analytics_planned_sale_line_series(sub),
+        cat_cache=_cat_cache,
+        sort_mode=_pie_sort,
+    )
+    _sale_chart_title = f"販売価格シェア（税抜・{_pie_dim_lbl}）— {_status_lbl}"
+    _render_inventory_category_pie(
+        sale_pie_df,
+        chart_title=_sale_chart_title,
+        label_col=str(sale_pie_df.columns[0]),
+        empty_caption="対象行に販売予定金額（税抜）が入っている行がありません。",
+    )
+
+    st.markdown("##### 粗利（税抜）の構成比")
+    st.caption(
+        f"対象: **{_status_lbl}**／軸: **{_pie_dim_lbl}**。"
+        f"在庫中・販売済の {COL_GROSS_PROFIT} を合算（対象外は含めません）。"
     )
     if sub.empty:
-        mix_df = pd.DataFrame(columns=["カテゴリー", "金額税抜"])
+        mix_df = pd.DataFrame(columns=[_pie_dim_key if _pie_dim_key != "カテゴリー" else "カテゴリー", "金額税抜"])
     else:
         _stn = sub[COL_STOCK_STATUS].astype(str).map(_normalize_stock_status)
         _gp = (
@@ -5814,20 +5880,14 @@ def render_analytics_dashboard_page() -> None:
             else pd.Series(0.0, index=sub.index)
         )
         _mix_gp = _gp.where(_stn.isin([STATUS_IN_STOCK, STATUS_SOLD]), 0.0)
-        sub["_mix_gp_cat"] = _mix_gp
-        mix_df = (
-            sub.groupby("_category", dropna=False)["_mix_gp_cat"]
-            .sum()
-            .reset_index()
+        mix_df = _build_analytics_pie_df(
+            sub,
+            dimension=_pie_dim_key,
+            value_series=_mix_gp,
+            cat_cache=_cat_cache,
+            sort_mode=_pie_sort,
         )
-        mix_df.columns = ["カテゴリー", "金額税抜"]
-        if _pie_sort == "金額の多い順":
-            mix_df = mix_df.sort_values("金額税抜", ascending=False, kind="mergesort")
-        elif _pie_sort == "金額の少ない順":
-            mix_df = mix_df.sort_values("金額税抜", ascending=True, kind="mergesort")
-        else:
-            mix_df = mix_df.sort_values("カテゴリー", ascending=True, kind="mergesort")
-    _mix_chart_title = f"粗利シェア（税抜・カテゴリー）— {_status_lbl}"
+    _mix_chart_title = f"粗利シェア（税抜・{_pie_dim_lbl}）— {_status_lbl}"
     _mix_sum = (
         float(pd.to_numeric(mix_df["金額税抜"], errors="coerce").fillna(0).sum())
         if not mix_df.empty
@@ -5836,10 +5896,14 @@ def render_analytics_dashboard_page() -> None:
     if mix_df.empty or _mix_sum <= 0:
         st.caption(
             "粗利（税抜）の合計が0以下のため、構成比の円グラフは表示できません。"
-            "（例: **対象外** のみ選択／粗利がマイナスばかりで合計が0以下など）"
         )
     else:
-        _render_inventory_category_pie(mix_df, chart_title=_mix_chart_title)
+        _render_inventory_category_pie(
+            mix_df,
+            chart_title=_mix_chart_title,
+            label_col=str(mix_df.columns[0]),
+            empty_caption="粗利が入っている行がありません。",
+        )
 
     with st.expander("分析: 対象行一覧（ソート）", expanded=False):
         st.caption(

@@ -134,19 +134,33 @@ def encode_service_account_b64(info: dict) -> str:
     return base64.b64encode(raw).decode("ascii")
 
 
-def build_cloud_secrets_toml(template_text: str, info: dict) -> str:
+def build_cloud_secrets_toml(template_text: str, info: dict, *, minimal: bool = False) -> str:
     base = strip_service_account_blocks(template_text).rstrip()
     b64 = encode_service_account_b64(info)
+    if minimal:
+        lines = [
+            ln
+            for ln in base.splitlines()
+            if ln.strip() and not ln.strip().startswith("#")
+        ]
+        base = "\n".join(lines).rstrip()
+    comment = ""
+    if not minimal:
+        comment = (
+            "# Streamlit Cloud 推奨: JSON を Base64 1行で渡す（private_key 改行問題を回避）\n"
+        )
     return (
         f"{base}\n\n"
-        "# Streamlit Cloud 推奨: JSON を Base64 1行で渡す（private_key 改行問題を回避）\n"
+        f"{comment}"
         f'GOOGLE_SERVICE_ACCOUNT_JSON_B64 = "{b64}"\n'
     )
 
 
-def build_secrets_toml(template_text: str, info: dict, *, cloud: bool = False) -> str:
+def build_secrets_toml(
+    template_text: str, info: dict, *, cloud: bool = False, minimal: bool = False
+) -> str:
     if cloud:
-        return build_cloud_secrets_toml(template_text, info)
+        return build_cloud_secrets_toml(template_text, info, minimal=minimal)
     base = strip_service_account_blocks(template_text).rstrip()
     sa = format_service_account_section(info)
     return f"{base}\n\n{sa}\n"
@@ -235,6 +249,11 @@ def main() -> None:
         help="Streamlit Cloud 向けに GOOGLE_SERVICE_ACCOUNT_JSON_B64（1行）を出力",
     )
     parser.add_argument(
+        "--minimal",
+        action="store_true",
+        help="コメント行を除いた最小構成（Cloud 貼り付け向け）",
+    )
+    parser.add_argument(
         "--skip-test",
         action="store_true",
         help="JWT / スプレッドシート接続テストをスキップ",
@@ -251,7 +270,9 @@ def main() -> None:
         info = load_service_account_json(args.json, use_stdin=args.stdin)
         template_path = resolve_template(args.template)
         template_text = template_path.read_text(encoding="utf-8")
-        secrets_toml = build_secrets_toml(template_text, info, cloud=args.cloud)
+        secrets_toml = build_secrets_toml(
+            template_text, info, cloud=args.cloud, minimal=args.minimal
+        )
 
         if not args.skip_test:
             print("=== 検証 ===", file=sys.stderr)
