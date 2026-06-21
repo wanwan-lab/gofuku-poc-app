@@ -4606,9 +4606,14 @@ def render_ledger_dashboard(df: pd.DataFrame) -> None:
             )
     ad = _prepare_ledger_analysis(df_in)
     ad_f = ad.dropna(subset=[COL_DATETIME], how="all")
+    _dash_cat_cache = _inventory_category_cache_load()
+    ad_f = ad_f.copy()
+    ad_f["_dash_category"] = ad_f.apply(
+        lambda r: _resolve_inventory_category_label(r, _dash_cat_cache), axis=1
+    )
 
     d_lo, d_hi = _ledger_dashboard_date_bounds(ad_f)
-    p1, p2, p3 = st.columns([1, 1, 2])
+    p1, p2, p3, p4 = st.columns([1, 1, 2, 2])
     with p1:
         date_from = st.date_input(
             "開始日（From）",
@@ -4626,6 +4631,12 @@ def render_ledger_dashboard(df: pd.DataFrame) -> None:
             key="dash_date_to",
         )
     with p3:
+        category_filter = st.multiselect(
+            "在庫カテゴリーで絞り込み（未選択は全件）",
+            options=sorted(ad_f["_dash_category"].fillna("その他").astype(str).unique().tolist()),
+            key="dash_category_filter",
+        )
+    with p4:
         supplier_filter = st.multiselect(
             "仕入先・取引先で絞り込み（未選択は全件）",
             options=sorted(ad_f[COL_SUPPLIER].fillna("").astype(str).unique().tolist()),
@@ -4643,6 +4654,8 @@ def render_ledger_dashboard(df: pd.DataFrame) -> None:
     from_ts = pd.Timestamp(datetime.combine(dfb, datetime.min.time()))
     to_ts = pd.Timestamp(datetime.combine(dtb, datetime.min.time()))
     flt = ad_f[(row_day >= from_ts) & (row_day <= to_ts)]
+    if category_filter:
+        flt = flt[flt["_dash_category"].astype(str).isin(category_filter)]
     if supplier_filter:
         flt = flt[flt[COL_SUPPLIER].astype(str).isin(supplier_filter)]
 
@@ -4723,7 +4736,7 @@ def render_ledger_dashboard(df: pd.DataFrame) -> None:
     if flt.empty:
         st.warning(
             "条件に一致するデータがありません。"
-            "From〜To の日付範囲または仕入先・取引先の絞り込みを見直してください。"
+            "日付範囲・在庫カテゴリー・仕入先・取引先の絞り込みを見直してください。"
         )
         return
 
@@ -5459,6 +5472,41 @@ def _build_analytics_pie_df(
     return _sort_analytics_pie_df(pie_df, sort_mode)
 
 
+def _analytics_category_options(
+    df: pd.DataFrame, cat_cache: dict[str, str]
+) -> list[str]:
+    if df.empty:
+        return []
+    cats = df.apply(lambda r: _resolve_inventory_category_label(r, cat_cache), axis=1)
+    return sorted(cats.fillna("その他").astype(str).unique().tolist())
+
+
+def _analytics_supplier_options(df: pd.DataFrame) -> list[str]:
+    if df.empty or COL_SUPPLIER not in df.columns:
+        return []
+    return sorted(df[COL_SUPPLIER].fillna("").astype(str).unique().tolist())
+
+
+def _apply_analytics_pie_filters(
+    df: pd.DataFrame,
+    *,
+    category_filter: list[str],
+    supplier_filter: list[str],
+    cat_cache: dict[str, str],
+) -> pd.DataFrame:
+    out = df.copy()
+    if out.empty:
+        return out
+    out["_category"] = out.apply(
+        lambda r: _resolve_inventory_category_label(r, cat_cache), axis=1
+    )
+    if category_filter:
+        out = out[out["_category"].astype(str).isin(category_filter)]
+    if supplier_filter and COL_SUPPLIER in out.columns:
+        out = out[out[COL_SUPPLIER].astype(str).isin(supplier_filter)]
+    return out
+
+
 def _render_inventory_category_pie_altair(
     pie_df: pd.DataFrame,
     *,
@@ -5768,7 +5816,8 @@ def render_analytics_dashboard_page() -> None:
 
     st.markdown("##### 分析の対象・構成比の並び")
     st.caption(
-        "ステータスで対象行を絞り込み、構成比は集計軸（カテゴリー／仕入先）と並び順を選べます。"
+        "ステータス・在庫カテゴリー・仕入先で対象行を絞り込み、"
+        "構成比は集計軸（カテゴリー／仕入先）と並び順を選べます。"
     )
     _ac1, _ac2, _ac3 = st.columns(3)
     with _ac1:
@@ -5800,7 +5849,37 @@ def render_analytics_dashboard_page() -> None:
     _mask_status = (
         calc[COL_STOCK_STATUS].astype(str).map(_normalize_stock_status).isin(_sel_norm)
     )
-    sub = calc.loc[_mask_status].copy()
+    sub_status = calc.loc[_mask_status].copy()
+    _cat_cache = _inventory_category_cache_load()
+    _cat_opts = _analytics_category_options(sub_status, _cat_cache)
+    _sup_opts = _analytics_supplier_options(sub_status)
+    _fc1, _fc2 = st.columns(2)
+    with _fc1:
+        _cat_filter = st.multiselect(
+            "在庫カテゴリーで絞り込み（未選択は全件）",
+            options=_cat_opts,
+            key="analytics_category_filter",
+        )
+    with _fc2:
+        _sup_filter = st.multiselect(
+            "仕入先・取引先で絞り込み（未選択は全件）",
+            options=_sup_opts,
+            key="analytics_supplier_filter",
+        )
+    sub = _apply_analytics_pie_filters(
+        sub_status,
+        category_filter=_cat_filter,
+        supplier_filter=_sup_filter,
+        cat_cache=_cat_cache,
+    )
+    if sub.empty:
+        st.warning("絞り込み条件に一致する行がありません。フィルタを見直してください。")
+    _filter_bits: list[str] = []
+    if _cat_filter:
+        _filter_bits.append(f"カテゴリー {len(_cat_filter)}件")
+    if _sup_filter:
+        _filter_bits.append(f"仕入先 {len(_sup_filter)}件")
+    _filter_lbl = f"／絞込: {', '.join(_filter_bits)}" if _filter_bits else ""
     _rq = _analytics_line_qty_multiplier(sub)
     cg = _series_to_numeric_loose(sub[COL_PRICE_EXCL]).fillna(0).clip(lower=0) * _rq
     total_inv = int(cg.sum())
@@ -5823,14 +5902,16 @@ def render_analytics_dashboard_page() -> None:
 
     _pie_dim_key = COL_SUPPLIER if _pie_dim == COL_SUPPLIER else "カテゴリー"
     _pie_dim_lbl = COL_SUPPLIER if _pie_dim == COL_SUPPLIER else "在庫カテゴリー"
-    _cat_cache = _inventory_category_cache_load()
-    sub["_category"] = sub.apply(
-        lambda r: _resolve_inventory_category_label(r, _cat_cache), axis=1
-    )
+    if "_category" not in sub.columns and not sub.empty:
+        sub["_category"] = sub.apply(
+            lambda r: _resolve_inventory_category_label(r, _cat_cache), axis=1
+        )
     _cost_vals = _series_to_numeric_loose(sub[COL_PRICE_EXCL]).fillna(0) * _rq
 
     st.markdown("##### 在庫原価（税抜）の構成比")
-    st.caption(f"対象: **{_status_lbl}**／軸: **{_pie_dim_lbl}**（仕入金額×数量）。")
+    st.caption(
+        f"対象: **{_status_lbl}**{_filter_lbl}／軸: **{_pie_dim_lbl}**（仕入金額×数量）。"
+    )
     pie_df = _build_analytics_pie_df(
         sub,
         dimension=_pie_dim_key,
@@ -5848,7 +5929,7 @@ def render_analytics_dashboard_page() -> None:
 
     st.markdown("##### 販売価格（税抜）の構成比")
     st.caption(
-        f"対象: **{_status_lbl}**／軸: **{_pie_dim_lbl}**（{COL_PLANNED_SALE}×数量）。"
+        f"対象: **{_status_lbl}**{_filter_lbl}／軸: **{_pie_dim_lbl}**（{COL_PLANNED_SALE}×数量）。"
     )
     sale_pie_df = _build_analytics_pie_df(
         sub,
@@ -5867,7 +5948,7 @@ def render_analytics_dashboard_page() -> None:
 
     st.markdown("##### 粗利（税抜）の構成比")
     st.caption(
-        f"対象: **{_status_lbl}**／軸: **{_pie_dim_lbl}**。"
+        f"対象: **{_status_lbl}**{_filter_lbl}／軸: **{_pie_dim_lbl}**。"
         f"在庫中・販売済の {COL_GROSS_PROFIT} を合算（対象外は含めません）。"
     )
     if sub.empty:
@@ -5911,7 +5992,7 @@ def render_analytics_dashboard_page() -> None:
             "ステータス別にまとめたうえで仕入先順に並べ替えられます（第2は「なし」で1段だけにもできます）。"
         )
         if sub.empty:
-            st.caption("選んだステータスに該当する行がありません。")
+            st.caption("絞り込み条件に該当する行がありません。")
         else:
             _tbl_opts = [
                 COL_DATETIME,
