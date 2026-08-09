@@ -2786,6 +2786,43 @@ def _fuzzy_ledger_match_rows(
     return df.loc[picked]
 
 
+def _rank_ledger_df_by_name_similarity(
+    df: pd.DataFrame,
+    query: str,
+    *,
+    limit: int | None = None,
+) -> pd.DataFrame:
+    """既に絞った行を、商品名・管理IDとクエリの近さで並べ替える（フリーワード用）。"""
+    if df is None or df.empty:
+        return pd.DataFrame()
+    q = (query or "").strip().casefold()
+    if not q:
+        return df.iloc[:0]
+    scored: list[tuple[float, Any]] = []
+    for i, row in df.iterrows():
+        rpn = str(row.get(COL_NAME, "") or "").strip().casefold()
+        rmid = str(row.get(COL_MANAGEMENT_ID, "") or "").strip().casefold()
+        sim = difflib.SequenceMatcher(None, rpn, q).ratio() if rpn else 0.0
+        if q in rmid:
+            sim = max(sim, 0.99 if q == rmid else 0.85)
+        scored.append((-sim, i))
+    scored.sort(
+        key=lambda x: (
+            x[0],
+            _management_id_sort_key(
+                str(df.loc[x[1]].get(COL_MANAGEMENT_ID, "") or "").strip()
+            ),
+        )
+    )
+    if limit is None:
+        picked = [i for _, i in scored]
+    else:
+        picked = [i for _, i in scored[: max(1, int(limit))]]
+    if not picked:
+        return df.iloc[:0]
+    return df.loc[picked]
+
+
 def _single_row_fuzzy_ledger_match(
     df: pd.DataFrame | None,
     product_name: str,
@@ -3636,12 +3673,18 @@ def _on_sales_assist_pick_management_id() -> None:
 
 
 def _refresh_sales_assist_quick_candidates(df_hint: pd.DataFrame | None) -> None:
-    """販売タブ・入力補助バッファから近い行を一覧用に格納する（返品＝販売済、戻入＝出庫浮貸の在庫中、他＝在庫中）。"""
+    """販売タブ・入力補助バッファ／フリーワードから近い行を一覧用に格納する（返品＝販売済、戻入＝出庫浮貸の在庫中、他＝在庫中）。"""
     if df_hint is None or df_hint.empty:
         st.session_state.pop("sales_assist_quick_candidates", None)
         return
-    pn = str(st.session_state.get("sales_assist_buf_product_name", "") or "").strip()
-    su = str(st.session_state.get("sales_assist_buf_supplier", "") or "").strip()
+    assist_pn = str(
+        st.session_state.get("sales_assist_buf_product_name", "") or ""
+    ).strip()
+    assist_su = str(st.session_state.get("sales_assist_buf_supplier", "") or "").strip()
+    fw = str(st.session_state.get("sales_freeword_search", "") or "").strip()
+    pn = assist_pn
+    su = assist_su
+    freeword_only = bool(fw) and not assist_pn and not assist_su
     _sold_scope = (
         str(st.session_state.get("sales_tab_outbound_kind", "") or "").strip()
         == "出庫（返品）"
@@ -3659,7 +3702,11 @@ def _refresh_sales_assist_quick_candidates(df_hint: pd.DataFrame | None) -> None
     if sub.empty:
         st.session_state.pop("sales_assist_quick_candidates", None)
         return
-    cand = _fuzzy_ledger_match_rows(sub, pn, su, limit=None)
+    if freeword_only:
+        # フリーワードで既に絞った行を、商品名・管理IDの近さで並べる（仕入の近い候補と同系統）
+        cand = _rank_ledger_df_by_name_similarity(sub, fw, limit=None)
+    else:
+        cand = _fuzzy_ledger_match_rows(sub, pn, su, limit=None)
     if cand.empty:
         st.session_state.pop("sales_assist_quick_candidates", None)
     else:
@@ -3747,9 +3794,20 @@ def _refresh_stocktake_assist_quick_candidates(
     if base is None or base.empty:
         st.session_state.pop("stocktake_assist_quick_candidates", None)
         return
-    pn = str(st.session_state.get("stocktake_assist_buf_product_name", "") or "").strip()
-    su = str(st.session_state.get("stocktake_assist_buf_supplier", "") or "").strip()
-    cand = _fuzzy_ledger_match_rows(base, pn, su, limit=None)
+    assist_pn = str(
+        st.session_state.get("stocktake_assist_buf_product_name", "") or ""
+    ).strip()
+    assist_su = str(
+        st.session_state.get("stocktake_assist_buf_supplier", "") or ""
+    ).strip()
+    fw = str(st.session_state.get("stocktake_freeword_search", "") or "").strip()
+    pn = assist_pn
+    su = assist_su
+    freeword_only = bool(fw) and not assist_pn and not assist_su
+    if freeword_only:
+        cand = _rank_ledger_df_by_name_similarity(base, fw, limit=None)
+    else:
+        cand = _fuzzy_ledger_match_rows(base, pn, su, limit=None)
     if cand.empty:
         st.session_state.pop("stocktake_assist_quick_candidates", None)
     else:
@@ -7410,7 +7468,7 @@ def render_stocktake_scan_tab(
     st.text_input(
         "フリーワード（商品名・管理ID・メモ）",
         key="stocktake_freeword_search",
-        placeholder="部分一致で検索（入力補助・候補カードに反映）",
+        placeholder="入力すると近い候補カードに反映（部分一致）",
     )
     _stk_fw = str(st.session_state.get("stocktake_freeword_search", "") or "").strip()
     _df_stk_pick = (
@@ -7551,234 +7609,6 @@ def render_stocktake_scan_tab(
             ).strip():
                 _tsm = str(st.session_state["_stocktake_selected_mid"]).strip()
                 st.caption(f"選択中の管理ID（補助）: **{_tsm}**")
-            _refresh_stocktake_assist_quick_candidates(_df_stk_pick, st_rem_scan)
-            _stk_c = st.session_state.get("stocktake_assist_quick_candidates")
-            if isinstance(_stk_c, pd.DataFrame) and not _stk_c.empty and _stk_fw:
-                _stk_c = _filter_ledger_df_by_freeword(_stk_c, _stk_fw)
-            if (
-                isinstance(_stk_c, pd.DataFrame)
-                and not _stk_c.empty
-                and _df_stk_pick is not None
-            ):
-                st.markdown("##### 近い候補（補助から照合・カード表示）")
-                st.caption(
-                    "今回のリストの在庫中行のうち、補助で確定した内容に近い行を表示します。"
-                    "**1件選択** ではカードの **この候補を選ぶ** のあと、下の **台帳入力補助で選んだ管理IDの棚卸確定**（AI 照合と併用可）で確定します。"
-                    "**複数選択** では一覧・ボタンでまとめて選び、**選択した行をまとめて棚卸確定** で一括反映します（AI 照合の候補がないときのみ）。"
-                )
-                _stk_hits = [
-                    _sale_card_hit_from_series(row)
-                    for _, row in _stk_c.iterrows()
-                ]
-                _st_assist_mode = st.radio(
-                    "台帳入力補助の棚卸確定の仕方",
-                    ("1件選択", "複数選択（一括反映）"),
-                    horizontal=True,
-                    key="stocktake_assist_confirm_mode",
-                )
-                _st_assist_batch = str(_st_assist_mode or "").startswith("複数")
-                _mid_opts_a: list[str] = []
-                _seen_m: set[str] = set()
-                for _h in _stk_hits:
-                    _m = str(_h.get("management_id") or "").strip()
-                    if _m and _m not in _seen_m:
-                        _seen_m.add(_m)
-                        _mid_opts_a.append(_m)
-                _mid_opts_a.sort(key=_management_id_sort_key)
-                _mid_label_a: dict[str, str] = {}
-                for _h in _stk_hits:
-                    _m = str(_h.get("management_id") or "").strip()
-                    if not _m:
-                        continue
-                    _pn = str(_h.get("product_name") or "—").strip()
-                    if len(_pn) > 36:
-                        _pn = _pn[:33] + "…"
-                    _mid_label_a[_m] = f"{_m} ／ {_pn}"
-                if "stocktake_assist_cand_page" not in st.session_state:
-                    st.session_state.stocktake_assist_cand_page = 0
-                n_tot_a = len(_mid_opts_a)
-                n_pg_a = max(
-                    1,
-                    (n_tot_a + STOCKTAKE_CAND_PAGE_SIZE - 1) // STOCKTAKE_CAND_PAGE_SIZE,
-                )
-                pg_a = int(st.session_state.stocktake_assist_cand_page)
-                pg_a = max(0, min(n_pg_a - 1, pg_a))
-                st.session_state.stocktake_assist_cand_page = pg_a
-                si_a = pg_a * STOCKTAKE_CAND_PAGE_SIZE
-                ei_a = min(n_tot_a, si_a + STOCKTAKE_CAND_PAGE_SIZE)
-                page_mids_a = _mid_opts_a[si_a:ei_a]
-                _by_mid_a = {
-                    str(h.get("management_id") or "").strip(): h for h in _stk_hits
-                }
-                page_hits_a = [_by_mid_a[m] for m in page_mids_a if m in _by_mid_a]
-                _has_ai_here = isinstance(
-                    st.session_state.get("_stocktake_scan_candidates"), list
-                ) and len(st.session_state.get("_stocktake_scan_candidates") or []) > 0
-                if _st_assist_batch:
-                    st.caption(
-                        "一覧と **この候補を選ぶ** で選択に追加できます。**選択した行をまとめて棚卸確定** で本日（JST）の棚卸日を一括反映します。"
-                    )
-                    ba1, ba2, ba3, ba4 = st.columns(4)
-                    with ba1:
-                        if st.button(
-                            "補助候補をすべて選択",
-                            key="stocktake_assist_sel_all",
-                            disabled=not _mid_opts_a,
-                        ):
-                            st.session_state[_PENDING_STOCKTAKE_ASSIST_BATCH_MIDS] = list(
-                                _mid_opts_a
-                            )
-                            st.rerun()
-                    with ba2:
-                        if st.button(
-                            "このページの候補をすべて選択",
-                            key="stocktake_assist_sel_page",
-                            disabled=not page_mids_a,
-                        ):
-                            _cur = set(
-                                st.session_state.get("stocktake_assist_batch_mids")
-                                or []
-                            )
-                            _cur.update(page_mids_a)
-                            st.session_state[_PENDING_STOCKTAKE_ASSIST_BATCH_MIDS] = sorted(
-                                _cur, key=_management_id_sort_key
-                            )
-                            st.rerun()
-                    with ba3:
-                        if st.button("選択をクリア", key="stocktake_assist_clr_sel"):
-                            st.session_state[_PENDING_STOCKTAKE_ASSIST_BATCH_MIDS] = None
-                            st.rerun()
-                    with ba4:
-                        st.caption(
-                            f"補助候補 **{n_tot_a}** 件中、選択中 **{len(st.session_state.get('stocktake_assist_batch_mids') or [])}** 件"
-                        )
-                    st.multiselect(
-                        "このページ内を任意選択（追加用）",
-                        options=page_mids_a,
-                        format_func=lambda m: _mid_label_a.get(m, m),
-                        key="stocktake_assist_page_pick",
-                    )
-                    if st.button(
-                        "このページの任意選択を追加",
-                        key="stocktake_assist_page_pick_add",
-                        disabled=not bool(
-                            st.session_state.get("stocktake_assist_page_pick")
-                        ),
-                    ):
-                        _cur = set(
-                            st.session_state.get("stocktake_assist_batch_mids") or []
-                        )
-                        _cur.update(
-                            [
-                                str(x).strip()
-                                for x in st.session_state.get(
-                                    "stocktake_assist_page_pick", []
-                                )
-                                if str(x).strip()
-                            ]
-                        )
-                        st.session_state[_PENDING_STOCKTAKE_ASSIST_BATCH_MIDS] = sorted(
-                            _cur, key=_management_id_sort_key
-                        )
-                        st.rerun()
-                    st.multiselect(
-                        "一括で棚卸確定する管理ID（任意に追加・解除）",
-                        options=_mid_opts_a,
-                        format_func=lambda m: _mid_label_a.get(m, m),
-                        key="stocktake_assist_batch_mids",
-                    )
-                else:
-                    _sel_one = str(
-                        st.session_state.get("_stocktake_selected_mid") or ""
-                    ).strip()
-                    if _sel_one:
-                        st.info(f"選択中の管理ID: **{_sel_one}**")
-                if n_pg_a > 1:
-                    p1, p2, p3 = st.columns([1, 3, 1])
-                    with p1:
-                        if st.button(
-                            "◀ 前へ",
-                            disabled=pg_a <= 0,
-                            key="stocktake_assist_pg_prev",
-                        ):
-                            st.session_state.stocktake_assist_cand_page = max(
-                                0, pg_a - 1
-                            )
-                            st.rerun()
-                    with p2:
-                        st.caption(
-                            f"**ページ {pg_a + 1} / {n_pg_a}**（{n_tot_a} 件中 **{si_a + 1}〜{ei_a}** 件）"
-                        )
-                    with p3:
-                        if st.button(
-                            "次へ ▶",
-                            disabled=pg_a >= n_pg_a - 1,
-                            key="stocktake_assist_pg_next",
-                        ):
-                            st.session_state.stocktake_assist_cand_page = min(
-                                n_pg_a - 1, pg_a + 1
-                            )
-                            st.rerun()
-                if _st_assist_batch:
-                    _cap_a = (
-                        f"全 **{n_tot_a}** 件中 **{si_a + 1}〜{ei_a}** 件（カード）"
-                    )
-                    _render_mid_pick_candidate_cards(
-                        page_hits_a,
-                        widget_key_namespace=f"stk_assist_pg_{pg_a}",
-                        sold=False,
-                        pick_mode="stocktake_merge",
-                        pager="hidden",
-                        caption_override=_cap_a,
-                    )
-                else:
-                    _render_mid_pick_candidate_cards(
-                        _stk_hits,
-                        widget_key_namespace="stk_assist",
-                        sold=False,
-                        pick_mode="stocktake",
-                    )
-                if (
-                    _st_assist_batch
-                    and not _has_ai_here
-                    and _scan_targets_ok
-                ):
-                    _picked_a = [
-                        str(x).strip()
-                        for x in (st.session_state.get("stocktake_assist_batch_mids") or [])
-                        if str(x).strip()
-                    ]
-                    if st.button(
-                        "選択した行をまとめて棚卸確定（棚卸日を本日・JST）",
-                        type="primary",
-                        key="stocktake_assist_confirm_batch",
-                        disabled=len(_picked_a) < 1,
-                    ):
-                        try:
-                            with st.spinner("台帳を更新しています…"):
-                                n_ok, skips = apply_last_stocktake_jst_for_management_ids(
-                                    _picked_a
-                                )
-                        except Exception as e:
-                            st.error(str(e))
-                        else:
-                            st.session_state.pop("_stocktake_scan_candidates", None)
-                            st.session_state.pop("_stocktake_selected_mid", None)
-                            st.session_state.pop("stocktake_multi_done_mids", None)
-                            st.session_state.pop("stocktake_cand_page", None)
-                            st.session_state.pop("stocktake_assist_batch_mids", None)
-                            st.session_state.pop("stocktake_assist_page_pick", None)
-                            st.success(
-                                f"**{n_ok}** 件の棚卸日を本日（JST）に更新しました。"
-                            )
-                            if skips:
-                                st.caption(
-                                    "スキップ: "
-                                    + "；".join(skips[:8])
-                                    + (" …" if len(skips) > 8 else "")
-                                )
-                            st.session_state.pop(LEDGER_DATA_EDITOR_KEY, None)
-                            st.rerun()
         else:
             st.caption(
                 "今回のリストに該当する在庫中行がありません。"
@@ -7792,6 +7622,245 @@ def render_stocktake_scan_tab(
         st.caption(
             "**今回の棚卸を開始** して対象リストがあるときだけ、ここに仕入タブと同様の台帳入力補助が表示されます。"
         )
+
+
+    if (
+        _scan_targets_ok
+        and (
+            st.session_state.stocktake_assist_visible
+            or bool(_stk_fw)
+        )
+        and _df_stk_pick is not None
+        and not _df_stk_pick.empty
+    ):
+        _refresh_stocktake_assist_quick_candidates(_df_stk_pick, st_rem_scan)
+        _stk_c = st.session_state.get("stocktake_assist_quick_candidates")
+        if isinstance(_stk_c, pd.DataFrame) and not _stk_c.empty and _stk_fw:
+            _stk_c = _filter_ledger_df_by_freeword(_stk_c, _stk_fw)
+        if (
+            isinstance(_stk_c, pd.DataFrame)
+            and not _stk_c.empty
+            and _df_stk_pick is not None
+        ):
+            st.markdown("##### 近い候補（フリーワード・補助から照合・カード表示）")
+            st.caption(
+                "今回のリストの在庫中行のうち、フリーワードまたは補助で確定した内容に近い行を表示します。"
+                "**1件選択** ではカードの **この候補を選ぶ** のあと、下の **台帳入力補助で選んだ管理IDの棚卸確定**（AI 照合と併用可）で確定します。"
+                "**複数選択** では一覧・ボタンでまとめて選び、**選択した行をまとめて棚卸確定** で一括反映します（AI 照合の候補がないときのみ）。"
+            )
+            _stk_hits = [
+                _sale_card_hit_from_series(row)
+                for _, row in _stk_c.iterrows()
+            ]
+            _st_assist_mode = st.radio(
+                "台帳入力補助の棚卸確定の仕方",
+                ("1件選択", "複数選択（一括反映）"),
+                horizontal=True,
+                key="stocktake_assist_confirm_mode",
+            )
+            _st_assist_batch = str(_st_assist_mode or "").startswith("複数")
+            _mid_opts_a: list[str] = []
+            _seen_m: set[str] = set()
+            for _h in _stk_hits:
+                _m = str(_h.get("management_id") or "").strip()
+                if _m and _m not in _seen_m:
+                    _seen_m.add(_m)
+                    _mid_opts_a.append(_m)
+            _mid_opts_a.sort(key=_management_id_sort_key)
+            _mid_label_a: dict[str, str] = {}
+            for _h in _stk_hits:
+                _m = str(_h.get("management_id") or "").strip()
+                if not _m:
+                    continue
+                _pn = str(_h.get("product_name") or "—").strip()
+                if len(_pn) > 36:
+                    _pn = _pn[:33] + "…"
+                _mid_label_a[_m] = f"{_m} ／ {_pn}"
+            if "stocktake_assist_cand_page" not in st.session_state:
+                st.session_state.stocktake_assist_cand_page = 0
+            n_tot_a = len(_mid_opts_a)
+            n_pg_a = max(
+                1,
+                (n_tot_a + STOCKTAKE_CAND_PAGE_SIZE - 1) // STOCKTAKE_CAND_PAGE_SIZE,
+            )
+            pg_a = int(st.session_state.stocktake_assist_cand_page)
+            pg_a = max(0, min(n_pg_a - 1, pg_a))
+            st.session_state.stocktake_assist_cand_page = pg_a
+            si_a = pg_a * STOCKTAKE_CAND_PAGE_SIZE
+            ei_a = min(n_tot_a, si_a + STOCKTAKE_CAND_PAGE_SIZE)
+            page_mids_a = _mid_opts_a[si_a:ei_a]
+            _by_mid_a = {
+                str(h.get("management_id") or "").strip(): h for h in _stk_hits
+            }
+            page_hits_a = [_by_mid_a[m] for m in page_mids_a if m in _by_mid_a]
+            _has_ai_here = isinstance(
+                st.session_state.get("_stocktake_scan_candidates"), list
+            ) and len(st.session_state.get("_stocktake_scan_candidates") or []) > 0
+            if _st_assist_batch:
+                st.caption(
+                    "一覧と **この候補を選ぶ** で選択に追加できます。**選択した行をまとめて棚卸確定** で本日（JST）の棚卸日を一括反映します。"
+                )
+                ba1, ba2, ba3, ba4 = st.columns(4)
+                with ba1:
+                    if st.button(
+                        "補助候補をすべて選択",
+                        key="stocktake_assist_sel_all",
+                        disabled=not _mid_opts_a,
+                    ):
+                        st.session_state[_PENDING_STOCKTAKE_ASSIST_BATCH_MIDS] = list(
+                            _mid_opts_a
+                        )
+                        st.rerun()
+                with ba2:
+                    if st.button(
+                        "このページの候補をすべて選択",
+                        key="stocktake_assist_sel_page",
+                        disabled=not page_mids_a,
+                    ):
+                        _cur = set(
+                            st.session_state.get("stocktake_assist_batch_mids")
+                            or []
+                        )
+                        _cur.update(page_mids_a)
+                        st.session_state[_PENDING_STOCKTAKE_ASSIST_BATCH_MIDS] = sorted(
+                            _cur, key=_management_id_sort_key
+                        )
+                        st.rerun()
+                with ba3:
+                    if st.button("選択をクリア", key="stocktake_assist_clr_sel"):
+                        st.session_state[_PENDING_STOCKTAKE_ASSIST_BATCH_MIDS] = None
+                        st.rerun()
+                with ba4:
+                    st.caption(
+                        f"補助候補 **{n_tot_a}** 件中、選択中 **{len(st.session_state.get('stocktake_assist_batch_mids') or [])}** 件"
+                    )
+                st.multiselect(
+                    "このページ内を任意選択（追加用）",
+                    options=page_mids_a,
+                    format_func=lambda m: _mid_label_a.get(m, m),
+                    key="stocktake_assist_page_pick",
+                )
+                if st.button(
+                    "このページの任意選択を追加",
+                    key="stocktake_assist_page_pick_add",
+                    disabled=not bool(
+                        st.session_state.get("stocktake_assist_page_pick")
+                    ),
+                ):
+                    _cur = set(
+                        st.session_state.get("stocktake_assist_batch_mids") or []
+                    )
+                    _cur.update(
+                        [
+                            str(x).strip()
+                            for x in st.session_state.get(
+                                "stocktake_assist_page_pick", []
+                            )
+                            if str(x).strip()
+                        ]
+                    )
+                    st.session_state[_PENDING_STOCKTAKE_ASSIST_BATCH_MIDS] = sorted(
+                        _cur, key=_management_id_sort_key
+                    )
+                    st.rerun()
+                st.multiselect(
+                    "一括で棚卸確定する管理ID（任意に追加・解除）",
+                    options=_mid_opts_a,
+                    format_func=lambda m: _mid_label_a.get(m, m),
+                    key="stocktake_assist_batch_mids",
+                )
+            else:
+                _sel_one = str(
+                    st.session_state.get("_stocktake_selected_mid") or ""
+                ).strip()
+                if _sel_one:
+                    st.info(f"選択中の管理ID: **{_sel_one}**")
+            if n_pg_a > 1:
+                p1, p2, p3 = st.columns([1, 3, 1])
+                with p1:
+                    if st.button(
+                        "◀ 前へ",
+                        disabled=pg_a <= 0,
+                        key="stocktake_assist_pg_prev",
+                    ):
+                        st.session_state.stocktake_assist_cand_page = max(
+                            0, pg_a - 1
+                        )
+                        st.rerun()
+                with p2:
+                    st.caption(
+                        f"**ページ {pg_a + 1} / {n_pg_a}**（{n_tot_a} 件中 **{si_a + 1}〜{ei_a}** 件）"
+                    )
+                with p3:
+                    if st.button(
+                        "次へ ▶",
+                        disabled=pg_a >= n_pg_a - 1,
+                        key="stocktake_assist_pg_next",
+                    ):
+                        st.session_state.stocktake_assist_cand_page = min(
+                            n_pg_a - 1, pg_a + 1
+                        )
+                        st.rerun()
+            if _st_assist_batch:
+                _cap_a = (
+                    f"全 **{n_tot_a}** 件中 **{si_a + 1}〜{ei_a}** 件（カード）"
+                )
+                _render_mid_pick_candidate_cards(
+                    page_hits_a,
+                    widget_key_namespace=f"stk_assist_pg_{pg_a}",
+                    sold=False,
+                    pick_mode="stocktake_merge",
+                    pager="hidden",
+                    caption_override=_cap_a,
+                )
+            else:
+                _render_mid_pick_candidate_cards(
+                    _stk_hits,
+                    widget_key_namespace="stk_assist",
+                    sold=False,
+                    pick_mode="stocktake",
+                )
+            if (
+                _st_assist_batch
+                and not _has_ai_here
+                and _scan_targets_ok
+            ):
+                _picked_a = [
+                    str(x).strip()
+                    for x in (st.session_state.get("stocktake_assist_batch_mids") or [])
+                    if str(x).strip()
+                ]
+                if st.button(
+                    "選択した行をまとめて棚卸確定（棚卸日を本日・JST）",
+                    type="primary",
+                    key="stocktake_assist_confirm_batch",
+                    disabled=len(_picked_a) < 1,
+                ):
+                    try:
+                        with st.spinner("台帳を更新しています…"):
+                            n_ok, skips = apply_last_stocktake_jst_for_management_ids(
+                                _picked_a
+                            )
+                    except Exception as e:
+                        st.error(str(e))
+                    else:
+                        st.session_state.pop("_stocktake_scan_candidates", None)
+                        st.session_state.pop("_stocktake_selected_mid", None)
+                        st.session_state.pop("stocktake_multi_done_mids", None)
+                        st.session_state.pop("stocktake_cand_page", None)
+                        st.session_state.pop("stocktake_assist_batch_mids", None)
+                        st.session_state.pop("stocktake_assist_page_pick", None)
+                        st.success(
+                            f"**{n_ok}** 件の棚卸日を本日（JST）に更新しました。"
+                        )
+                        if skips:
+                            st.caption(
+                                "スキップ: "
+                                + "；".join(skips[:8])
+                                + (" …" if len(skips) > 8 else "")
+                            )
+                        st.session_state.pop(LEDGER_DATA_EDITOR_KEY, None)
+                        st.rerun()
 
     _cands_pre = st.session_state.get("_stocktake_scan_candidates")
     _has_ai_stocktake_cands = isinstance(_cands_pre, list) and len(_cands_pre) > 0
@@ -8244,7 +8313,7 @@ def _render_sales_management_tab(
     st.text_input(
         "フリーワード（商品名・管理ID・メモ）",
         key="sales_freeword_search",
-        placeholder="部分一致で検索（管理ID一覧・入力補助・候補カードに反映）",
+        placeholder="入力すると近い候補カードに反映（管理ID一覧・入力補助にも反映）",
     )
     _sales_fw = str(st.session_state.get("sales_freeword_search", "") or "").strip()
     _df_sales_pick = (
@@ -8681,6 +8750,13 @@ def _render_sales_management_tab(
                 "一致が1件だけのときだけ **販売する管理ID** が自動入力されます。それ以外は一覧か手入力で特定してください。"
             )
 
+
+
+    if (
+        (st.session_state.sales_assist_visible or bool(_sales_fw))
+        and _df_sales_pick is not None
+        and not _df_sales_pick.empty
+    ):
         _refresh_sales_assist_quick_candidates(_df_sales_pick)
         _sac = st.session_state.get("sales_assist_quick_candidates")
         if isinstance(_sac, pd.DataFrame) and not _sac.empty and _sales_fw:
@@ -8690,23 +8766,23 @@ def _render_sales_management_tab(
             and not _sac.empty
             and _df_sales_pick is not None
         ):
-            st.markdown("##### 近い候補（補助で選んだ項目・入力から照合・カード）")
+            st.markdown("##### 近い候補（フリーワード・補助で選んだ項目から照合・カード）")
             st.caption(
                 (
-                    "入力補助で確定した項目と表記が近い **販売済** を表示します。"
+                    "フリーワードまたは入力補助で確定した項目と表記が近い **販売済** を表示します。"
                     "上の **販売対象の選択** が **複数選択** のときは、一覧・ボタンで **販売する管理ID** に追加できます。"
                     "カードの **この候補を販売元にする** は選択に追加（既存のIDは残します）。"
                 )
                 if _return_flow
                 else (
                     (
-                        "入力補助で確定した項目と表記が近い、**在庫中かつ出庫種別が出庫（浮貸）** の行を表示します。"
+                        "フリーワードまたは入力補助で確定した項目と表記が近い、**在庫中かつ出庫種別が出庫（浮貸）** の行を表示します。"
                         "上の **販売対象の選択** が **複数選択** のときは、AI 写真照合と同様に一覧・ボタンで **販売する管理ID** に追加できます。"
                         "カードの **この候補を販売元にする** は選択に追加（既存のIDは残します）。"
                     )
                     if _receipt_flow
                     else (
-                        "入力補助で確定した項目と表記が近い **在庫中** を表示します。"
+                        "フリーワードまたは入力補助で確定した項目と表記が近い **在庫中** を表示します。"
                         "上の **販売対象の選択** が **複数選択** のときは、AI 写真照合と同様に一覧・ボタンで **販売する管理ID** に追加できます。"
                         "カードの **この候補を販売元にする** は選択に追加（既存のIDは残します）。"
                     )
