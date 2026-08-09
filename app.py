@@ -3572,6 +3572,9 @@ def _sales_rows_matching_assist_buffers() -> tuple[pd.DataFrame, list[str]]:
         sub = df.loc[_mask_ledger_in_stock_outbound_float_loan(df)]
     else:
         sub = df.loc[_mask_ledger_in_stock(df)]
+    sub = _filter_ledger_df_by_freeword(
+        sub, str(st.session_state.get("sales_freeword_search", "") or "")
+    )
     pn = str(st.session_state.get("sales_assist_buf_product_name", "") or "").strip()
     su = str(st.session_state.get("sales_assist_buf_supplier", "") or "").strip()
     cat = str(st.session_state.get("sales_assist_buf_inventory_category", "") or "").strip()
@@ -3669,7 +3672,9 @@ def _stocktake_rows_matching_assist_buffers(
     base = _stocktake_assist_scope_dataframe(df_hint, remaining)
     if base is None or base.empty:
         return base or pd.DataFrame(), []
-    sub = base
+    sub = _filter_ledger_df_by_freeword(
+        base, str(st.session_state.get("stocktake_freeword_search", "") or "")
+    )
     pn = str(st.session_state.get("stocktake_assist_buf_product_name", "") or "").strip()
     su = str(st.session_state.get("stocktake_assist_buf_supplier", "") or "").strip()
     cat = str(st.session_state.get("stocktake_assist_buf_inventory_category", "") or "").strip()
@@ -7402,6 +7407,22 @@ def render_stocktake_scan_tab(
             "- 候補は管理ID昇順で表示されます。\n"
             "- 確定は棚卸日の更新のみで、新規行は追加しません。"
         )
+    st.text_input(
+        "フリーワード（商品名・管理ID・メモ）",
+        key="stocktake_freeword_search",
+        placeholder="部分一致で検索（入力補助・候補カードに反映）",
+    )
+    _stk_fw = str(st.session_state.get("stocktake_freeword_search", "") or "").strip()
+    _df_stk_pick = (
+        _filter_ledger_df_by_freeword(df_ledger_hint, _stk_fw)
+        if df_ledger_hint is not None and not df_ledger_hint.empty
+        else df_ledger_hint
+    )
+    if _stk_fw and df_ledger_hint is not None and not df_ledger_hint.empty:
+        st.caption(
+            f"フリーワード該当 **{len(_df_stk_pick):,}** 行"
+            f"（台帳全体 {len(df_ledger_hint):,} 行のうち）。"
+        )
     if not _scan_targets_ok:
         if st_rem_scan is None:
             st.info(
@@ -7498,10 +7519,10 @@ def render_stocktake_scan_tab(
     if (
         st.session_state.stocktake_assist_visible
         and _scan_targets_ok
-        and df_ledger_hint is not None
-        and not df_ledger_hint.empty
+        and _df_stk_pick is not None
+        and not _df_stk_pick.empty
     ):
-        _st_hint_df = _stocktake_assist_scope_dataframe(df_ledger_hint, st_rem_scan)
+        _st_hint_df = _stocktake_assist_scope_dataframe(_df_stk_pick, st_rem_scan)
         if _st_hint_df is not None and not _st_hint_df.empty:
             _render_ledger_pick_assist_three_columns(
                 _st_hint_df,
@@ -7530,12 +7551,14 @@ def render_stocktake_scan_tab(
             ).strip():
                 _tsm = str(st.session_state["_stocktake_selected_mid"]).strip()
                 st.caption(f"選択中の管理ID（補助）: **{_tsm}**")
-            _refresh_stocktake_assist_quick_candidates(df_ledger_hint, st_rem_scan)
+            _refresh_stocktake_assist_quick_candidates(_df_stk_pick, st_rem_scan)
             _stk_c = st.session_state.get("stocktake_assist_quick_candidates")
+            if isinstance(_stk_c, pd.DataFrame) and not _stk_c.empty and _stk_fw:
+                _stk_c = _filter_ledger_df_by_freeword(_stk_c, _stk_fw)
             if (
                 isinstance(_stk_c, pd.DataFrame)
                 and not _stk_c.empty
-                and df_ledger_hint is not None
+                and _df_stk_pick is not None
             ):
                 st.markdown("##### 近い候補（補助から照合・カード表示）")
                 st.caption(
@@ -7757,7 +7780,10 @@ def render_stocktake_scan_tab(
                             st.session_state.pop(LEDGER_DATA_EDITOR_KEY, None)
                             st.rerun()
         else:
-            st.caption("今回のリストに該当する在庫中行が台帳にありません。")
+            st.caption(
+                "今回のリストに該当する在庫中行がありません。"
+                + ("（フリーワードで絞り込み中）" if _stk_fw else "")
+            )
     elif (
         st.session_state.stocktake_assist_visible
         and df_ledger_hint is not None
@@ -7811,6 +7837,7 @@ def render_stocktake_scan_tab(
                 st.rerun()
 
     if st.button("入力をクリア", key="stocktake_assist_clear_btn"):
+        st.session_state.stocktake_freeword_search = ""
         st.session_state.stocktake_hint_filter_product_name = ""
         st.session_state.stocktake_hint_filter_supplier = ""
         st.session_state.stocktake_hint_filter_inventory_category = ""
@@ -7842,7 +7869,17 @@ def render_stocktake_scan_tab(
     wn = st.session_state.pop("_stocktake_scan_warn", None)
     if wn:
         st.warning(wn)
-    cands = st.session_state.get("_stocktake_scan_candidates")
+    _cands_raw = st.session_state.get("_stocktake_scan_candidates")
+    cands = (
+        _filter_card_hits_by_freeword(
+            _cands_raw if isinstance(_cands_raw, list) else None,
+            _stk_fw,
+        )
+        if isinstance(_cands_raw, list)
+        else []
+    )
+    if isinstance(_cands_raw, list) and _cands_raw and not cands and _stk_fw:
+        st.caption("AI 照合の候補はありますが、フリーワードに一致する行はありません。")
     if isinstance(cands, list) and cands:
         st.markdown("### 照合候補（今回の対象リスト・在庫中）")
         st.caption(
@@ -8070,6 +8107,50 @@ def _mask_ledger_loan_datetime_nonblank(df: pd.DataFrame) -> pd.Series:
     return ~(blank.fillna(True))
 
 
+def _filter_ledger_df_by_freeword(df: pd.DataFrame | None, q: str) -> pd.DataFrame:
+    """ギャラリーと同じフリーワード（商品名・管理ID・メモの部分一致）。"""
+    if df is None or getattr(df, "empty", True):
+        return df if isinstance(df, pd.DataFrame) else pd.DataFrame()
+    qt = (q or "").strip()
+    if not qt:
+        return df
+    qf = qt.casefold()
+    m = pd.Series(False, index=df.index)
+    for col in (COL_NAME, COL_MANAGEMENT_ID, COL_MEMO):
+        if col in df.columns:
+            m = m | df[col].astype(str).str.casefold().str.contains(
+                qf, na=False, regex=False
+            )
+    return df.loc[m].copy()
+
+
+def _filter_card_hits_by_freeword(
+    hits: list[dict[str, Any]] | None, q: str
+) -> list[dict[str, Any]]:
+    """候補カード dict をギャラリーと同じフリーワードで絞る。"""
+    if not hits:
+        return []
+    qt = (q or "").strip()
+    if not qt:
+        return list(hits)
+    qf = qt.casefold()
+    out: list[dict[str, Any]] = []
+    for h in hits:
+        if not isinstance(h, dict):
+            continue
+        blob = " ".join(
+            [
+                str(h.get("product_name") or ""),
+                str(h.get("management_id") or ""),
+                str(h.get("memo") or ""),
+                str(h.get("supplier") or ""),
+            ]
+        ).casefold()
+        if qf in blob:
+            out.append(h)
+    return out
+
+
 def _filter_inventory_df_for_view(
     df: pd.DataFrame,
     *,
@@ -8117,16 +8198,7 @@ def _filter_inventory_df_for_view(
     if suppliers and COL_SUPPLIER in out.columns:
         sup_m = out[COL_SUPPLIER].astype(str).str.strip().isin(set(suppliers))
         out = out.loc[sup_m]
-    qt = (q or "").strip()
-    if qt and not out.empty:
-        qf = qt.casefold()
-        m = pd.Series(False, index=out.index)
-        for col in (COL_NAME, COL_MANAGEMENT_ID, COL_MEMO):
-            if col in out.columns:
-                m = m | out[col].astype(str).str.casefold().str.contains(
-                    qf, na=False, regex=False
-                )
-        out = out.loc[m]
+    out = _filter_ledger_df_by_freeword(out, q)
     return out.reset_index(drop=True)
 
 
@@ -8168,6 +8240,22 @@ def _render_sales_management_tab(
             "- **出庫（返品）**: **販売済** の行を **在庫中** に戻します（写真照合・台帳補助は販売済行が対象）。\n"
             "- **出庫（戻入）**: **在庫中** の行に浮貸日時と出庫（戻入）を記録するか、販売済へ更新できます（浮貸と同様にステータスを選べます）。\n"
             "- 写真照合は上部の共通アップローダ画像を使用します。"
+        )
+    st.text_input(
+        "フリーワード（商品名・管理ID・メモ）",
+        key="sales_freeword_search",
+        placeholder="部分一致で検索（管理ID一覧・入力補助・候補カードに反映）",
+    )
+    _sales_fw = str(st.session_state.get("sales_freeword_search", "") or "").strip()
+    _df_sales_pick = (
+        _filter_ledger_df_by_freeword(df_ledger_hint, _sales_fw)
+        if df_ledger_hint is not None and not df_ledger_hint.empty
+        else df_ledger_hint
+    )
+    if _sales_fw and df_ledger_hint is not None and not df_ledger_hint.empty:
+        st.caption(
+            f"フリーワード該当 **{len(_df_sales_pick):,}** 行"
+            f"（台帳全体 {len(df_ledger_hint):,} 行のうち）。"
         )
     outbound_kind = st.radio(
         "出庫区分",
@@ -8253,6 +8341,7 @@ def _render_sales_management_tab(
         st.session_state.sales_tab_memo = ""
         st.session_state.sales_tab_loan_datetime_manual = ""
         st.session_state.sale_pick_source_id = LEDGER_PICK_PLACEHOLDER
+        st.session_state.sales_freeword_search = ""
         st.session_state.sales_hint_filter_product_name = ""
         st.session_state.sales_hint_filter_supplier = ""
         st.session_state.sales_hint_filter_inventory_category = ""
@@ -8396,15 +8485,15 @@ def _render_sales_management_tab(
         )
 
     _sale_id_opts: list[str] = []
-    if df_ledger_hint is not None and not df_ledger_hint.empty:
+    if _df_sales_pick is not None and not _df_sales_pick.empty:
         if _return_flow:
-            _sale_id_opts = _ledger_sold_management_ids(df_ledger_hint)
+            _sale_id_opts = _ledger_sold_management_ids(_df_sales_pick)
         elif _receipt_flow:
             _sale_id_opts = _ledger_in_stock_outbound_float_loan_management_ids(
-                df_ledger_hint
+                _df_sales_pick
             )
         else:
-            _sale_id_opts = _ledger_in_stock_management_ids(df_ledger_hint)
+            _sale_id_opts = _ledger_in_stock_management_ids(_df_sales_pick)
     _sale_pick_mode = st.radio(
         "販売対象の選択",
         ("1件選択", "複数選択（一括反映）"),
@@ -8427,7 +8516,17 @@ def _render_sales_management_tab(
                 key="sale_pick_source_id",
                 on_change=_on_sale_pick_source_id,
             )
-    _spm_hits = st.session_state.get("_sales_photo_match_card_hits")
+    _spm_hits_raw = st.session_state.get("_sales_photo_match_card_hits")
+    _spm_hits = (
+        _filter_card_hits_by_freeword(
+            _spm_hits_raw if isinstance(_spm_hits_raw, list) else None,
+            _sales_fw,
+        )
+        if isinstance(_spm_hits_raw, list)
+        else []
+    )
+    if isinstance(_spm_hits_raw, list) and _spm_hits_raw and not _spm_hits and _sales_fw:
+        st.caption("写真照合の候補はありますが、フリーワードに一致する行はありません。")
     if isinstance(_spm_hits, list) and _spm_hits:
         st.markdown("##### 写真照合の近い候補（カード）")
         st.caption(
@@ -8526,9 +8625,17 @@ def _render_sales_management_tab(
         st.session_state.sales_assist_visible
         and df_ledger_hint is not None
         and not df_ledger_hint.empty
+        and (_df_sales_pick is None or _df_sales_pick.empty)
+        and _sales_fw
+    ):
+        st.caption("フリーワードに一致する行がないため、台帳入力補助を表示できません。")
+    elif (
+        st.session_state.sales_assist_visible
+        and _df_sales_pick is not None
+        and not _df_sales_pick.empty
     ):
         _render_ledger_pick_assist_three_columns(
-            df_ledger_hint,
+            _df_sales_pick,
             key_prefix="sales_",
             sales_restrict_to_sold=_return_flow,
             sales_restrict_to_float_loan_outbound=_receipt_flow,
@@ -8574,12 +8681,14 @@ def _render_sales_management_tab(
                 "一致が1件だけのときだけ **販売する管理ID** が自動入力されます。それ以外は一覧か手入力で特定してください。"
             )
 
-        _refresh_sales_assist_quick_candidates(df_ledger_hint)
+        _refresh_sales_assist_quick_candidates(_df_sales_pick)
         _sac = st.session_state.get("sales_assist_quick_candidates")
+        if isinstance(_sac, pd.DataFrame) and not _sac.empty and _sales_fw:
+            _sac = _filter_ledger_df_by_freeword(_sac, _sales_fw)
         if (
             isinstance(_sac, pd.DataFrame)
             and not _sac.empty
-            and df_ledger_hint is not None
+            and _df_sales_pick is not None
         ):
             st.markdown("##### 近い候補（補助で選んだ項目・入力から照合・カード）")
             st.caption(
